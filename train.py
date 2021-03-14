@@ -1,6 +1,7 @@
 import hydra
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
+from pytorch_lightning.loggers import WandbLogger
 
 from lightning import *
 
@@ -8,7 +9,12 @@ from lightning import *
 def train(config: DictConfig):
     lightning = ShopeeLightning(config)
     data_module = ShopeeDataModule(config)
-    trainer = Trainer(gpus=config.gpus, max_epochs=config.epochs)
+    logger = WandbLogger(save_dir=config.wandb.save_dir, offline=config.wandb.offline)
+    trainer = Trainer(
+        gpus=config.gpus,
+        max_epochs=config.epochs,
+        logger=logger
+    )
     trainer.fit(lightning, data_module)
 
 

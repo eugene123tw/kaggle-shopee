@@ -1,10 +1,10 @@
 import torch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.metrics.classification import Fbeta
-from torch.nn import Softmax
+from torch.nn import Softmax, CrossEntropyLoss
 
 from models.meta_model import Backbone
-from thirdparty.arc_face.models import FocalLoss, ArcMarginProduct
+from thirdparty.arc_face.models import ArcMarginProduct
 
 
 class ShopeeLightning(LightningModule):
@@ -13,7 +13,7 @@ class ShopeeLightning(LightningModule):
         self.hparams = hparams
         self.model = Backbone(hparams)
         self.metric = ArcMarginProduct(hparams.embeddings, hparams.num_classes, easy_margin=False)
-        self.criterion = FocalLoss(gamma=2)
+        self.criterion = CrossEntropyLoss()  # FocalLoss(gamma=2)
         self.f_measure = Fbeta(num_classes=hparams.num_classes)
         self.softmax = Softmax(dim=1)
 
@@ -32,7 +32,7 @@ class ShopeeLightning(LightningModule):
         features = self.model(imgs)
         features = self.metric(features, labels)
         loss = self.criterion(features, labels)
-        self.log_dict({'train_loss': loss})
+        self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -43,9 +43,8 @@ class ShopeeLightning(LightningModule):
         p = self.softmax(features)
         pred_score, pred_indices = torch.max(p, dim=-1)
         self.f_measure.update(pred_indices, labels)
-        metrics = {'val_loss': val_loss, 'val_accu': self.f_measure.compute()}
-        self.log_dict(metrics)
-        return metrics
+        self.log("val/loss", val_loss, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/accuracy", self.f_measure.compute(), on_step=False, on_epoch=True, prog_bar=True)
 
     def validation_epoch_end(self, outputs):
-        return {'val_accuracy': self.f_measure.compute()}
+        self.log("val/epoch_accuracy", self.f_measure.compute(), on_step=False, on_epoch=True, prog_bar=True)

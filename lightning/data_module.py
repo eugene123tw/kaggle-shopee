@@ -35,6 +35,8 @@ class ShopeeDataModule(LightningDataModule):
                 # transforms.RandomHorizontalFlip(),
                 # transforms.RandomRotation(10),
                 transforms.Resize((self.hparams.input_size, self.hparams.input_size)),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
             ])
         )
 
@@ -43,6 +45,8 @@ class ShopeeDataModule(LightningDataModule):
             transform=transforms.Compose([
                 transforms.ToTensor(),
                 transforms.Resize((self.hparams.input_size, self.hparams.input_size)),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
             ])
         )
 
