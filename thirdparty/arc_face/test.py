@@ -4,14 +4,13 @@ Created on 18-5-30 下午4:55
 
 @author: ronghuaiyang
 """
-from __future__ import print_function
 
 import time
 
 import cv2
 import numpy as np
 
-from thirdparty.arcface.models import *
+from thirdparty.arc_face.models import *
 
 
 def get_lfw_list(pair_list):

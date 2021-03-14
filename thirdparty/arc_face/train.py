@@ -9,12 +9,12 @@ from torch import nn
 from torch.optim.lr_scheduler import StepLR
 from torch.utils import data
 
-from thirdparty.arcface.config import Config
-from thirdparty.arcface.data import Dataset
-from thirdparty.arcface.models import AddMarginProduct, ArcMarginProduct, FocalLoss, SphereProduct
-from thirdparty.arcface.models import resnet_face18, resnet34, resnet50
-from thirdparty.arcface.test import get_lfw_list, lfw_test
-from thirdparty.arcface.utils import Visualizer
+from thirdparty.arc_face.config import Config
+from thirdparty.arc_face.data import Dataset
+from thirdparty.arc_face.models import AddMarginProduct, ArcMarginProduct, FocalLoss, SphereProduct
+from thirdparty.arc_face.models import resnet_face18, resnet34, resnet50
+from thirdparty.arc_face.test import get_lfw_list, lfw_test
+from thirdparty.arc_face.utils import Visualizer
 
 
 def save_model(model, save_path, name, iter_cnt):

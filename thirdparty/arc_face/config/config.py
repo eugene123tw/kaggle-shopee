@@ -19,7 +19,7 @@ class Config(object):
     test_list = 'test.txt'
 
     lfw_root = '/home/user/_DATASET/face/lfw/lfw_funneled'
-    lfw_test_list = '/home/user/git/kaggle-shopee/arcface/lfw_test_pair.txt'
+    lfw_test_list = '/home/user/git/kaggle-shopee/thirdparty/arc_face/lfw_test_pair.txt'
 
     checkpoints_path = 'checkpoints'
     load_model_path = 'models/resnet18.pth'
