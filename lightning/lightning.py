@@ -1,8 +1,9 @@
 import torch
 from pytorch_lightning import LightningModule
-from pytorch_lightning.metrics.classification import Fbeta
+from pytorch_lightning.metrics.classification import F1
 from torch.nn import Softmax, CrossEntropyLoss
 
+from callbacks import FeatureEmbeddingCache
 from models.meta_model import Backbone
 from thirdparty.arc_face.models import ArcMarginProduct
 
@@ -14,8 +15,13 @@ class ShopeeLightning(LightningModule):
         self.model = Backbone(hparams)
         self.metric = ArcMarginProduct(hparams.embeddings, hparams.num_classes, easy_margin=False)
         self.criterion = CrossEntropyLoss()  # FocalLoss(gamma=2)
-        self.f_measure = Fbeta(num_classes=hparams.num_classes)
+        self.f_measure = F1(num_classes=hparams.num_classes)
         self.softmax = Softmax(dim=1)
+
+    def configure_callbacks(self):
+        return [
+            FeatureEmbeddingCache(self.hparams)
+        ]
 
     def configure_optimizers(self):
         # TODO: make sure all weights are included (the weight in ArcLoss especially)
@@ -28,15 +34,15 @@ class ShopeeLightning(LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        imgs, labels = batch
+        fnames, imgs, labels = batch
         features = self.model(imgs)
         features = self.metric(features, labels)
         loss = self.criterion(features, labels)
         self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        return loss
+        return {'loss': loss, 'embeddings': features, 'fnames': fnames}
 
     def validation_step(self, batch, batch_idx):
-        imgs, labels = batch
+        fnames, imgs, labels = batch
         features = self.model(imgs)
         features = self.metric(features, labels)
         val_loss = self.criterion(features, labels)

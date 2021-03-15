@@ -1,12 +1,12 @@
 import csv
 from typing import Optional, Union, List
-
+from utils import read_csv
 from omegaconf import DictConfig
 from pytorch_lightning import LightningDataModule
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
-
+import numpy as np
 from utils.dataset import ShopeeDataset
 
 
@@ -16,18 +16,10 @@ class ShopeeDataModule(LightningDataModule):
         self.hparams = hparams
 
     def setup(self, stage: Optional[str] = None):
-        lines = []
-        label_set = set()
-        with open(self.hparams.label_csv, "r") as f:
-            reader = csv.reader(f)
-            for i, line in enumerate(reader):
-                if i > 0:
-                    lines.append(line)
-                    label_set.add(line[4])
-        label_map = {label: i for i, label in enumerate(list(label_set))}
-
+        lines = read_csv(self.hparams.label_csv)
+        label_set = np.unique(np.array(lines)[:, 4])
+        label_map = {label: i for i, label in enumerate(label_set)}
         train_lines, test_lines = train_test_split(lines, test_size=0.2, random_state=42)
-
         self.train_dataset = ShopeeDataset(
             self.hparams, label_map, train_lines,
             transform=transforms.Compose([
@@ -54,6 +46,7 @@ class ShopeeDataModule(LightningDataModule):
         return DataLoader(
             self.train_dataset,
             batch_size=self.hparams.batch_size,
+            shuffle=True
         )
 
     def val_dataloader(self, *args, **kwargs) -> Union[DataLoader, List[DataLoader]]:
