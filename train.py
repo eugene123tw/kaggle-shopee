@@ -8,14 +8,13 @@ from lightning import *
 
 def train(config: DictConfig):
     lightning = ShopeeLightning(config)
-    data_module = ShopeeDataModule(config)
     logger = WandbLogger(save_dir=config.wandb.save_dir, offline=config.wandb.offline)
     trainer = Trainer(
         gpus=config.gpus,
         max_epochs=config.epochs,
-        logger=logger
+        logger=logger,
     )
-    trainer.fit(lightning, data_module)
+    trainer.fit(lightning)
 
 
 @hydra.main(config_path="configs/", config_name="config.yaml")

@@ -1,11 +1,15 @@
+from typing import Union, List, Any
+
+import numpy as np
 import torch
 from pytorch_lightning import LightningModule
-from pytorch_lightning.metrics.classification import F1
-from torch.nn import Softmax, CrossEntropyLoss
+from sklearn.metrics.pairwise import cosine_similarity
+from torch.utils.data import DataLoader
+from torchvision.transforms import transforms
 
-from callbacks import FeatureEmbeddingCache
 from models.meta_model import Backbone
-from thirdparty.arc_face.models import ArcMarginProduct
+from utils import read_csv, dice, ShopeeDataset
+from utils.loss import ArcMarginProduct
 
 
 class ShopeeLightning(LightningModule):
@@ -13,21 +17,53 @@ class ShopeeLightning(LightningModule):
         super(ShopeeLightning, self).__init__()
         self.hparams = hparams
         self.model = Backbone(hparams)
-        self.metric = ArcMarginProduct(hparams.embeddings, hparams.num_classes, easy_margin=False)
-        self.criterion = CrossEntropyLoss()  # FocalLoss(gamma=2)
-        self.f_measure = F1(num_classes=hparams.num_classes)
-        self.softmax = Softmax(dim=1)
+        self.arc_loss = ArcMarginProduct(hparams.embeddings, hparams.num_classes)
+        # self.criterion = CrossEntropyLoss()  # FocalLoss(gamma=2)
 
-    def configure_callbacks(self):
-        return [
-            FeatureEmbeddingCache(self.hparams)
-        ]
+    def prepare_data(self) -> None:
+        lines = read_csv(self.hparams.label_csv)
+        lines = np.array(lines)
+        lines = lines[np.argsort(lines[:, -1])]
+        self.train_lines, self.val_lines = lines[:int(len(lines) * 0.8)], lines[int(len(lines) * 0.8):]
+        self.train_dataset = ShopeeDataset(
+            self.hparams,
+            self.train_lines,
+            transform=transforms.Compose([
+                transforms.Resize((self.hparams.input_size, self.hparams.input_size)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225]),
+            ])
+        )
+
+        self.val_dataset = ShopeeDataset(
+            self.hparams,
+            self.val_lines,
+            transform=transforms.Compose([
+                transforms.Resize((self.hparams.input_size, self.hparams.input_size)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225]),
+            ])
+        )
+
+    def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
+        return DataLoader(
+            self.val_dataset,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers
+        )
+
+    def train_dataloader(self) -> Any:
+        return DataLoader(
+            self.train_dataset,
+            shuffle=True,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers
+        )
 
     def configure_optimizers(self):
-        # TODO: make sure all weights are included (the weight in ArcLoss especially)
-        optimizer = torch.optim.Adam([
-            {'params': self.model.parameters()}, {'params': self.metric.parameters()}
-        ], lr=self.hparams.lr)
+        optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.lr)
         return optimizer
 
     def forward(self, x):
@@ -36,21 +72,27 @@ class ShopeeLightning(LightningModule):
     def training_step(self, batch, batch_idx):
         fnames, imgs, labels = batch
         features = self.model(imgs)
-        features = self.metric(features, labels)
-        loss = self.criterion(features, labels)
-        self.log("train/loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        return {'loss': loss, 'embeddings': features, 'fnames': fnames}
+        loss = self.arc_loss(features, labels)
+        # loss = self.criterion(features, labels)
+        self.log("train/loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+        return {'loss': loss}
 
     def validation_step(self, batch, batch_idx):
         fnames, imgs, labels = batch
-        features = self.model(imgs)
-        features = self.metric(features, labels)
-        val_loss = self.criterion(features, labels)
-        p = self.softmax(features)
-        pred_score, pred_indices = torch.max(p, dim=-1)
-        self.f_measure.update(pred_indices, labels)
-        self.log("val/loss", val_loss, on_step=False, on_epoch=True, prog_bar=True)
-        self.log("val/accuracy", self.f_measure.compute(), on_step=False, on_epoch=True, prog_bar=True)
+        embeddings = self.model(imgs)
+        return {'embeddings': embeddings}
 
-    def validation_epoch_end(self, outputs):
-        self.log("val/epoch_accuracy", self.f_measure.compute(), on_step=False, on_epoch=True, prog_bar=True)
+    def validation_epoch_end(self, outputs: List[Any]) -> Any:
+        embedding_matrix = []
+        gt = self.val_dataset.gt
+        for output in outputs:
+            output_embeddings = output['embeddings']
+            if torch.is_tensor(output_embeddings):
+                output_embeddings = output_embeddings.detach().cpu().numpy()
+            embedding_matrix.append(output_embeddings)
+        embedding_matrix = np.vstack(embedding_matrix)
+        sim_matrix = cosine_similarity(embedding_matrix)
+        sim_matrix = (sim_matrix - np.min(sim_matrix)) / (np.max(sim_matrix) - np.min(sim_matrix))
+        sim_matrix = np.triu(sim_matrix)
+        dice_score = dice(sim_matrix > 0.5, gt[:len(sim_matrix), :len(sim_matrix)])
+        self.log("val/dice", dice_score, on_step=False, on_epoch=True, prog_bar=True)

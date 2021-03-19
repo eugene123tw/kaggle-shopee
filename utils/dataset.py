@@ -1,17 +1,21 @@
 import os
-from typing import Dict, List, Callable, Optional
+from typing import List, Callable, Optional
 
-import cv2
+import numpy as np
+from PIL import Image
 from torch.utils.data import Dataset
+
+from utils.utils import build_gt
 
 
 class ShopeeDataset(Dataset):
-    def __init__(self, hparams, label_map: Dict, lines: List, transform: Optional[Callable] = None):
+    def __init__(self, hparams, lines: List, transform: Optional[Callable] = None):
         super(ShopeeDataset, self).__init__()
         self.hparams = hparams
-        self.label_map = label_map
+        self.label_map = {label: i for i, label in enumerate(np.unique(np.array(lines)[:, 4]))}
         self.lines = lines
         self.transform = transform
+        self.gt = build_gt(self.lines)
 
     def __len__(self):
         return len(self.lines)
@@ -22,8 +26,7 @@ class ShopeeDataset(Dataset):
         label = self.label_map[line[-1]]
 
         img_path = os.path.join(self.hparams.train_dir, line[1])
-        img = cv2.imread(img_path)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = Image.open(img_path)
 
         if self.transform is not None:
             img = self.transform(img)
