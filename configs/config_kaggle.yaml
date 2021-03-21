@@ -1,0 +1,8 @@
+defaults:
+  - config.yaml
+  - trainer: default_trainer.yaml
+  - model: model.yaml
+  - optimizer: adam.yaml
+  - datamodule: kaggle.yaml
+  - callbacks: default_callbacks.yaml  # set this to null if you don't want to use callbacks
+  - logger: wandb.yaml  # set logger here or use command line (e.g. `python train.py logger=wandb`)

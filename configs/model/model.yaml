@@ -1,5 +1,4 @@
 input_size: 512
-easy_margin: false
 backbone: resnet50
 pretrained: true
 embeddings: 512

@@ -4,12 +4,13 @@ import numpy as np
 import torch
 from pytorch_lightning import LightningModule
 from sklearn.metrics.pairwise import cosine_similarity
+from torch import nn
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
 from models.meta_model import Backbone
 from utils import read_csv, dice, ShopeeDataset
-from utils.loss import ArcMarginProduct
+from utils.loss import SphereProduct
 
 
 class ShopeeLightning(LightningModule):
@@ -17,8 +18,8 @@ class ShopeeLightning(LightningModule):
         super(ShopeeLightning, self).__init__()
         self.hparams = hparams
         self.model = Backbone(hparams)
-        self.arc_loss = ArcMarginProduct(hparams.embeddings, hparams.num_classes)
-        # self.criterion = CrossEntropyLoss()  # FocalLoss(gamma=2)
+        self.arc_loss = SphereProduct(hparams.embeddings, hparams.num_classes)
+        self.criterion = nn.CrossEntropyLoss()  # FocalLoss(gamma=2)
 
     def prepare_data(self) -> None:
         lines = read_csv(self.hparams.label_csv)
@@ -72,8 +73,8 @@ class ShopeeLightning(LightningModule):
     def training_step(self, batch, batch_idx):
         fnames, imgs, labels = batch
         features = self.model(imgs)
-        loss = self.arc_loss(features, labels)
-        # loss = self.criterion(features, labels)
+        logits = self.arc_loss(features, labels)
+        loss = self.criterion(logits, labels)
         self.log("train/loss", loss, on_step=True, on_epoch=False, prog_bar=True)
         return {'loss': loss}
 
