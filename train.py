@@ -8,11 +8,11 @@ from lightning import *
 
 def train(config: DictConfig):
     lightning = ShopeeLightning(config)
-    logger = WandbLogger(save_dir=config.wandb.save_dir, offline=config.wandb.offline)
+    # logger = WandbLogger(save_dir=config.wandb.save_dir, offline=config.wandb.offline)
     trainer = Trainer(
         gpus=config.gpus,
         max_epochs=config.epochs,
-        logger=logger,
+        # logger=logger,
     )
     trainer.fit(lightning)
 

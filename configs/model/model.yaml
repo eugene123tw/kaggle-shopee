@@ -1,4 +1,6 @@
 input_size: 512
-backbone: resnet50
+backbone: efficientnet_b0
 pretrained: true
-embeddings: 512
+embedding_size: 512
+p_trainable: true
+neck: option-D

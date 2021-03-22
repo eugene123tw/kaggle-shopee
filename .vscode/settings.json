@@ -1,0 +1,6 @@
+{
+    "python.pythonPath": "/home/user/git/envs/kaggle_env/bin/python3.6",
+    "python.linting.pylintEnabled": false,
+    "python.linting.mypyEnabled": true,
+    "python.linting.enabled": true,
+}
