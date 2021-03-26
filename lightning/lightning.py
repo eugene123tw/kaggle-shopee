@@ -88,9 +88,6 @@ class ShopeeLightning(LightningModule):
         self.log("train/loss", loss, on_step=True, on_epoch=False, prog_bar=True)
         return {'loss': loss}
 
-    def training_epoch_end(self, outputs: List[Any]):
-        self.log("train/val", self.f1.compute(), on_step=False, on_epoch=True, prog_bar=True)
-
     def validation_step(self, batch, batch_idx):
         fnames, imgs, sentences, labels = batch
         outputs = self.model((imgs, sentences))
