@@ -84,11 +84,8 @@ class ShopeeLightning(LightningModule):
         fnames, imgs, sentences, labels = batch
         outputs = self.model((imgs, sentences))
         f = self.metric_crit(outputs, labels)
-        pred_values, pred_indices = torch.max(f, dim=-1)
-        self.f1.update(preds=pred_indices, target=labels)
         loss = self.ce(f, labels)
         self.log("train/loss", loss, on_step=True, on_epoch=False, prog_bar=True)
-
         return {'loss': loss}
 
     def training_epoch_end(self, outputs: List[Any]):
@@ -98,6 +95,8 @@ class ShopeeLightning(LightningModule):
         fnames, imgs, sentences, labels = batch
         outputs = self.model((imgs, sentences))
         f = self.metric_crit(outputs, labels)
+        pred_values, pred_indices = torch.max(f, dim=-1)
+        self.f1.update(preds=pred_indices, target=labels)
         return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
 
     def validation_epoch_end(self, outputs: List[Any]) -> Any:
@@ -120,3 +119,4 @@ class ShopeeLightning(LightningModule):
             FN += len(set(gt_indices) - set(pred_indices))
 
         self.log("val/dice", TP / (TP + 0.5 * (FP + FN)), on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/f1", self.f1.compute(), on_step=False, on_epoch=True, prog_bar=True)
