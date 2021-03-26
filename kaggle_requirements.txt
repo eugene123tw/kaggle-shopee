@@ -1,8 +1,7 @@
 opencv-python
-pytorch-lightning
 hydra-core
 numpy
 scikit-learn
 matplotlib
-transformers
 pytorch-nlp==0.5.0
+transformers
