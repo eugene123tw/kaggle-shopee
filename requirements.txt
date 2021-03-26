@@ -8,3 +8,4 @@ hydra-core
 numpy
 scikit-learn
 matplotlib
+sentence-transformers

@@ -3,13 +3,15 @@ from typing import Union, List, Any
 import numpy as np
 import torch
 from pytorch_lightning import LightningModule
+from pytorch_lightning.metrics import F1
 from sklearn.metrics.pairwise import cosine_similarity
+from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
 from models.meta_model import MetaNet
 from utils import read_csv, ShopeeDataset
-from utils.loss import ArcFaceLoss
+from utils.loss import SphereProduct
 
 
 class ShopeeLightning(LightningModule):
@@ -17,7 +19,12 @@ class ShopeeLightning(LightningModule):
         super(ShopeeLightning, self).__init__()
         self.hparams = hparams
         self.model = MetaNet(hparams)
-        self.metric_crit = ArcFaceLoss(s=30, m=0.4)
+        # ArcFaceLoss(s=30, m=0.4)
+        self.metric_crit = SphereProduct(
+            in_features=hparams.text_embedding_size + hparams.image_embedding_size,
+            out_features=hparams.num_classes)
+        self.ce = CrossEntropyLoss()
+        self.f1 = F1(num_classes=hparams.num_classes)
 
     def prepare_data(self) -> None:
         lines = read_csv(self.hparams.label_csv)
@@ -74,17 +81,24 @@ class ShopeeLightning(LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        fnames, imgs, labels = batch
-        outputs = self.model(imgs)
-        loss = self.metric_crit(outputs['logits'], labels)
+        fnames, imgs, sentences, labels = batch
+        outputs = self.model((imgs, sentences))
+        f = self.metric_crit(outputs, labels)
+        pred_values, pred_indices = torch.max(f, dim=-1)
+        self.f1.update(preds=pred_indices, target=labels)
+        loss = self.ce(f, labels)
         self.log("train/loss", loss, on_step=True, on_epoch=False, prog_bar=True)
+
         return {'loss': loss}
 
+    def training_epoch_end(self, outputs: List[Any]):
+        self.log("train/val", self.f1.compute(), on_step=False, on_epoch=True, prog_bar=True)
+
     def validation_step(self, batch, batch_idx):
-        fnames, imgs, labels = batch
-        output = self.model(imgs, get_embeddings=True)
-        embeddings = output['embeddings']
-        return {'fnames': fnames, 'embeddings': embeddings.detach().cpu().numpy()}
+        fnames, imgs, sentences, labels = batch
+        outputs = self.model((imgs, sentences))
+        f = self.metric_crit(outputs, labels)
+        return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
 
     def validation_epoch_end(self, outputs: List[Any]) -> Any:
         gt = self.val_dataset.gt

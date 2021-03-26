@@ -1,10 +1,10 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
+from transformers import AutoTokenizer, AutoModel
 
 import timm
-from models import resnet_backbone
-from utils.loss import ArcMarginProduct
+from utils import mask_fill, lengths_to_mask
 
 
 def gem(x, p=3, eps=1e-6):
@@ -28,64 +28,94 @@ class GeM(nn.Module):
             self.eps) + ')'
 
 
-class Backbone(nn.Module):
+class ImageBackbone(nn.Module):
     def __init__(self, hparams):
-        super(Backbone, self).__init__()
+        super(ImageBackbone, self).__init__()
         self.hparams = hparams
 
-        if 'resnet' in hparams.backbone:
-            self.backbone = resnet_backbone[self.hparams.backbone](pretrained=self.hparams.pretrained,
-                                                                   num_classes=hparams.embeddings)
-        elif 'efficientnet' in hparams.backbone:
-            self.backbone = timm.create_model(hparams.backbone, pretrained=self.hparams.pretrained)
-            self.out_features = self.backbone.classifier.in_features
+        self.backbone = timm.create_model(hparams.backbone, pretrained=self.hparams.pretrained)
+        self.out_features = self.backbone.classifier.in_features
+
+        # Define Last Pooling Layer
+        self.global_pool = GeM(p_trainable=hparams.p_trainable)
+
+        # Define Neck Layer
+        if hparams.neck == "option-D":
+            self.neck = nn.Sequential(
+                nn.Linear(self.out_features, hparams.image_embedding_size, bias=True),
+                nn.BatchNorm1d(hparams.image_embedding_size),
+                torch.nn.PReLU()
+            )
+        elif hparams.neck == "option-F":
+            self.neck = nn.Sequential(
+                nn.Dropout(0.3),
+                nn.Linear(self.out_features, hparams.image_embedding_size, bias=True),
+                nn.BatchNorm1d(hparams.image_embedding_size),
+                torch.nn.PReLU()
+            )
+        else:
+            self.neck = nn.Sequential(
+                nn.Linear(self.out_features, hparams.image_embedding_size, bias=False),
+                nn.BatchNorm1d(hparams.image_embedding_size),
+            )
 
     def forward(self, x):
         x = self.backbone.forward_features(x)
+        x = self.global_pool(x)
+        x = x[:, :, 0, 0]
+        x = self.neck(x)
         return x
+
+
+class SentenceBackbone(nn.Module):
+    def __init__(self, hparams):
+        super(SentenceBackbone, self).__init__()
+        self.hparams = hparams
+        self.tokenizer = AutoTokenizer.from_pretrained(hparams.text_backbone)
+        self.text_backbone = AutoModel.from_pretrained(hparams.text_backbone, output_hidden_states=True)
+
+    def forward(self, sentence):
+        tokens_output = self.tokenizer(
+            list(sentence),
+            return_tensors="pt",
+            padding=True,
+            return_length=True,
+            return_token_type_ids=False,
+            return_attention_mask=False,
+            truncation="only_first",
+            max_length=self.hparams.sentence_max_length,
+        )
+        tokens, token_length = tokens_output["input_ids"], tokens_output["length"]
+
+        tokens = tokens[:, : token_length.max()].cuda()
+        word_embeddings = self.text_backbone(tokens)[0]
+
+        mask = lengths_to_mask(token_length, device=tokens.device)
+
+        # Average Pooling
+        word_embeddings = mask_fill(
+            0.0, tokens, word_embeddings, self.tokenizer.pad_token_id
+        )
+        sentemb = torch.sum(word_embeddings, 1)
+        sum_mask = mask.unsqueeze(-1).expand(word_embeddings.size()).float().sum(1)
+        sentemb = sentemb / sum_mask
+        return sentemb
 
 
 class MetaNet(nn.Module):
     def __init__(self, hparams):
         super(MetaNet, self).__init__()
         self.hparams = hparams
-        self.backbone = Backbone(hparams)
-        self.global_pool = GeM(p_trainable=hparams.p_trainable)
-        self.embedding_size = hparams.embedding_size
+        self.image_backbone = ImageBackbone(hparams)
+        self.sentence_backbone = SentenceBackbone(hparams)
+        self.embedding_size = hparams.image_embedding_size + hparams.text_embedding_size
+        self.norm_layer = nn.BatchNorm1d(self.embedding_size)
 
-        if hparams.neck == "option-D":
-            self.neck = nn.Sequential(
-                nn.Linear(self.backbone.out_features, self.embedding_size, bias=True),
-                nn.BatchNorm1d(self.embedding_size),
-                torch.nn.PReLU()
-            )
-        elif hparams.neck == "option-F":
-            self.neck = nn.Sequential(
-                nn.Dropout(0.3),
-                nn.Linear(self.backbone.out_features, self.embedding_size, bias=True),
-                nn.BatchNorm1d(self.embedding_size),
-                torch.nn.PReLU()
-            )
-        else:
-            self.neck = nn.Sequential(
-                nn.Linear(self.backbone.out_features, self.embedding_size, bias=False),
-                nn.BatchNorm1d(self.embedding_size),
-            )
+    def forward(self, input):
+        img, sentence = input
+        img_embed = self.image_backbone(img)
+        sentence_embed = self.sentence_backbone(sentence)
 
-        self.head = ArcMarginProduct(self.embedding_size, hparams.num_classes)
-
-    def forward(self, x, get_embeddings=False):
-
-        x = self.backbone(x)
-
-        x = self.global_pool(x)
-        x = x[:, :, 0, 0]
-
-        x = self.neck(x)
-
-        logits = self.head(x)
-
-        if get_embeddings:
-            return {'logits': logits, 'embeddings': x}
-        else:
-            return {'logits': logits}
+        x = torch.cat((img_embed, sentence_embed), -1)
+        x = self.norm_layer(x)
+        return x

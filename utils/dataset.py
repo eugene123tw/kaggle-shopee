@@ -22,6 +22,7 @@ class ShopeeDataset(Dataset):
     def __getitem__(self, item):
         line = self.lines[item]
         fname = line[0]
+        sentence = line[3]
         label = self.label_map[line[-1]]
 
         img_path = os.path.join(self.hparams.train_dir, line[1])
@@ -29,4 +30,4 @@ class ShopeeDataset(Dataset):
 
         if self.transform is not None:
             img = self.transform(img)
-        return fname, img, label
+        return fname, img, sentence, label

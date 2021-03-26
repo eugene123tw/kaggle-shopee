@@ -1,6 +1,9 @@
 input_size: 512
 backbone: efficientnet_b0
+text_backbone: cahya/distilbert-base-indonesian
 pretrained: true
-embedding_size: 512
+image_embedding_size: 256
+text_embedding_size: 768
+sentence_max_length: 512
 p_trainable: true
 neck: option-D
