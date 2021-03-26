@@ -90,16 +90,8 @@ class SentenceBackbone(nn.Module):
         tokens = tokens[:, : token_length.max()].cuda()
         word_embeddings = self.text_backbone(tokens)[0]
 
-        mask = lengths_to_mask(token_length, device=tokens.device)
-
-        # Average Pooling
-        word_embeddings = mask_fill(
-            0.0, tokens, word_embeddings, self.tokenizer.pad_token_id
-        )
-        sentemb = torch.sum(word_embeddings, 1)
-        sum_mask = mask.unsqueeze(-1).expand(word_embeddings.size()).float().sum(1)
-        sentemb = sentemb / sum_mask
-        return sentemb
+        # obtaining CLS token state which is the first token.
+        return word_embeddings[:, 0, :]
 
 
 class MetaNet(nn.Module):

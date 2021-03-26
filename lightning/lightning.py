@@ -42,6 +42,8 @@ class ShopeeLightning(LightningModule):
             label_map=label_map,
             transform=transforms.Compose([
                 transforms.Resize((self.hparams.input_size, self.hparams.input_size)),
+                transforms.RandomHorizontalFlip(p=0.5),
+                transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
                 transforms.ToTensor()
             ])
         )
@@ -84,16 +86,18 @@ class ShopeeLightning(LightningModule):
         fnames, imgs, sentences, labels = batch
         outputs = self.model((imgs, sentences))
         f = self.metric_crit(outputs, labels)
+        pred_values, pred_indices = torch.max(f, dim=-1)
+        self.f1.update(preds=pred_indices, target=labels)
         loss = self.ce(f, labels)
         self.log("train/loss", loss, on_step=True, on_epoch=False, prog_bar=True)
         return {'loss': loss}
 
+    def training_epoch_end(self, outputs: List[Any]) -> None:
+        self.log("train/f1", self.f1.compute(), on_step=False, on_epoch=True, prog_bar=True)
+
     def validation_step(self, batch, batch_idx):
         fnames, imgs, sentences, labels = batch
         outputs = self.model((imgs, sentences))
-        f = self.metric_crit(outputs, labels)
-        pred_values, pred_indices = torch.max(f, dim=-1)
-        self.f1.update(preds=pred_indices, target=labels)
         return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
 
     def validation_epoch_end(self, outputs: List[Any]) -> Any:
@@ -110,10 +114,9 @@ class ShopeeLightning(LightningModule):
         TP, FP, FN = 0, 0, 0
         for i, fname in enumerate(fnames):
             gt_indices = gt[fname]
-            pred_indices = np.where(sim_matrix[i] > 0.5)[0]
+            pred_indices = np.where(sim_matrix[i] > 0.7)[0]
             TP += len(set(gt_indices).intersection(set(pred_indices)))
             FP += len(set(pred_indices) - set(gt_indices))
             FN += len(set(gt_indices) - set(pred_indices))
 
         self.log("val/dice", TP / (TP + 0.5 * (FP + FN)), on_step=False, on_epoch=True, prog_bar=True)
-        self.log("val/f1", self.f1.compute(), on_step=False, on_epoch=True, prog_bar=True)
