@@ -1,6 +1,7 @@
 train_dir: ${data_dir}/train_images
 test_dir: ${data_dir}/test_images
 label_csv: ${data_dir}/train.csv
+test_csv: ${data_dir}/test.csv
 num_classes: 11014
 num_workers: 4
 pin_memory: False

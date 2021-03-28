@@ -93,7 +93,10 @@ class ShopeeLightning(LightningModule):
         return {'loss': loss}
 
     def training_epoch_end(self, outputs: List[Any]) -> None:
-        self.log("train/f1", self.f1.compute(), on_step=False, on_epoch=True, prog_bar=True)
+        f1_value = self.f1.compute()
+        logs = {"train/f1": f1_value}
+        self.logger.log_metrics(logs, step=self.current_epoch)
+        self.log("train/f1", f1_value, on_step=False, on_epoch=True, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
         fnames, imgs, sentences, labels = batch
@@ -119,4 +122,7 @@ class ShopeeLightning(LightningModule):
             FP += len(set(pred_indices) - set(gt_indices))
             FN += len(set(gt_indices) - set(pred_indices))
 
-        self.log("val/dice", TP / (TP + 0.5 * (FP + FN)), on_step=False, on_epoch=True, prog_bar=True)
+        f1_value = TP / (TP + 0.5 * (FP + FN))
+        logs = {"val/f1": f1_value}
+        self.logger.log_metrics(logs, step=self.current_epoch)
+        self.log("val/f1", f1_value, on_step=False, on_epoch=True, prog_bar=True)

@@ -1,5 +1,3 @@
 wandb:
-    project: "shoppee"
-    # entity: ""  # set to name of your wandb team or just remove it
-    offline: true
-    save_dir: "."
+  project: "kaggle-shopee"
+  name: ${now:%Y-%m-%d_%H-%M-%S}

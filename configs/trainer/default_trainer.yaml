@@ -1,2 +1,2 @@
 gpus: 1
-epochs: 50
+epochs: 20
