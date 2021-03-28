@@ -32,6 +32,7 @@ def train(config: DictConfig):
         log_model=True
     )
     trainer = Trainer(
+        auto_scale_batch_size='binsearch',
         gpus=config.gpus,
         max_epochs=config.epochs,
         logger=logger,

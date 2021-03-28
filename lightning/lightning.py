@@ -1,12 +1,13 @@
 from typing import Union, List, Any
 
+import albumentations
 import numpy as np
 import torch
+from albumentations.pytorch import ToTensorV2
 from pytorch_lightning import LightningModule
 from pytorch_lightning.metrics import F1
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
-from torchvision.transforms import transforms
 
 from models.meta_model import MetaNet
 from utils import (
@@ -45,11 +46,16 @@ class ShopeeLightning(LightningModule):
             self.hparams,
             lines=train_lines,
             label_map=label_map,
-            transform=transforms.Compose([
-                transforms.Resize((self.hparams.input_size, self.hparams.input_size)),
-                transforms.RandomHorizontalFlip(p=0.5),
-                transforms.ColorJitter(brightness=0.1, contrast=0.1, saturation=0.1, hue=0.1),
-                transforms.ToTensor()
+            transform=albumentations.Compose([
+                albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
+                albumentations.HorizontalFlip(p=0.5),
+                albumentations.RandomBrightnessContrast(p=0.5, brightness_limit=(-0.2, 0.2),
+                                                        contrast_limit=(-0.2, 0.2)),
+                albumentations.HueSaturationValue(p=0.5, hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2),
+                albumentations.ShiftScaleRotate(p=0.5, shift_limit=0.0625, scale_limit=0.2, rotate_limit=20),
+                albumentations.CoarseDropout(p=0.5),
+                albumentations.Normalize(),
+                ToTensorV2()
             ])
         )
 
@@ -57,9 +63,10 @@ class ShopeeLightning(LightningModule):
             self.hparams,
             lines=val_lines,
             label_map=label_map,
-            transform=transforms.Compose([
-                transforms.Resize((self.hparams.input_size, self.hparams.input_size)),
-                transforms.ToTensor(),
+            transform=albumentations.Compose([
+                albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
+                albumentations.Normalize(),
+                ToTensorV2()
             ])
         )
 
@@ -83,12 +90,16 @@ class ShopeeLightning(LightningModule):
         test_dataset = ShopeeTestDataset(
             self.hparams,
             lines=test_lines,
-            transform=transforms.Compose([
-                transforms.Resize((self.hparams.input_size, self.hparams.input_size)),
-                transforms.ToTensor(),
+            transform=albumentations.Compose([
+                albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
+                albumentations.Normalize()
             ])
         )
-        return DataLoader(test_dataset, batch_size=1)
+        return DataLoader(
+            test_dataset,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers
+        )
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(

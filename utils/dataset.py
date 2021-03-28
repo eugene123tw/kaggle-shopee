@@ -1,7 +1,7 @@
 import os
 from typing import List, Callable, Optional
 
-from PIL import Image
+import cv2
 from torch.utils.data import Dataset
 
 from utils.utils import build_gt
@@ -26,10 +26,13 @@ class ShopeeDataset(Dataset):
         label = self.label_map[line[-1]]
 
         img_path = os.path.join(self.hparams.train_dir, line[1])
-        img = Image.open(img_path)
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         if self.transform is not None:
-            img = self.transform(img)
+            res = self.transform(image=img)
+            img = res['image']
+
         return fname, img, sentence, label
 
 
@@ -49,8 +52,10 @@ class ShopeeTestDataset(Dataset):
         sentence = line[3]
 
         img_path = os.path.join(self.hparams.test_dir, line[1])
-        img = Image.open(img_path)
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
         if self.transform is not None:
-            img = self.transform(img)
+            res = self.transform(image=img)
+            img = res['image']
         return fname, img, sentence

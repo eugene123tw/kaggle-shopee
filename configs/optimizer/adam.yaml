@@ -1,4 +1,4 @@
 lr: 0.001
 eps: 1e-08
 weight_decay: 0
-batch_size: 32
+batch_size: 64
