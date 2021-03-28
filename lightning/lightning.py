@@ -92,7 +92,8 @@ class ShopeeLightning(LightningModule):
             lines=test_lines,
             transform=albumentations.Compose([
                 albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
-                albumentations.Normalize()
+                albumentations.Normalize(),
+                ToTensorV2()
             ])
         )
         return DataLoader(
