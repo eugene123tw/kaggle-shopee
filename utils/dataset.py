@@ -31,3 +31,26 @@ class ShopeeDataset(Dataset):
         if self.transform is not None:
             img = self.transform(img)
         return fname, img, sentence, label
+
+
+class ShopeeTestDataset(Dataset):
+    def __init__(self, hparams, lines: List, transform: Optional[Callable] = None):
+        super(ShopeeTestDataset, self).__init__()
+        self.hparams = hparams
+        self.lines = lines
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.lines)
+
+    def __getitem__(self, item):
+        line = self.lines[item]
+        fname = line[0]
+        sentence = line[3]
+
+        img_path = os.path.join(self.hparams.test_dir, line[1])
+        img = Image.open(img_path)
+
+        if self.transform is not None:
+            img = self.transform(img)
+        return fname, img, sentence

@@ -45,7 +45,14 @@ def train(config: DictConfig):
 
 def test(config: DictConfig):
     lightning = ShopeeLightning(config)
-    lightning.load_from_checkpoint(config.weights)
+    lightning.load_from_checkpoint(
+        config.weights,
+        pretrained=config.pretrained,
+        text_backbone=config.text_backbone,
+        data_dir=config.data_dir
+    )
+    trainer = Trainer(gpus=config.gpus)
+    trainer.test(lightning)
 
 
 @hydra.main(config_path="configs/", config_name="config.yaml")

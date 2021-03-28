@@ -1,10 +1,6 @@
 defaults:
   - config.yaml
-  - trainer: default_trainer.yaml
-  - model: model.yaml
-  - optimizer: adam.yaml
-  - datamodule: datamodule.yaml
-  - callbacks: default_callbacks.yaml  # set this to null if you don't want to use callbacks
-  - logger: wandb.yaml  # set logger here or use command line (e.g. `python train.py logger=wandb`)
 
 data_dir: "../input/shopee-product-matching"
+testing: True
+weights: "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-03-27/11-32-09/checkpoints/epoch=09-val/f1=0.731.ckpt"

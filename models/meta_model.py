@@ -69,8 +69,10 @@ class SentenceBackbone(nn.Module):
     def __init__(self, hparams):
         super(SentenceBackbone, self).__init__()
         self.hparams = hparams
-        self.tokenizer = AutoTokenizer.from_pretrained(hparams.text_backbone)
-        self.text_backbone = AutoModel.from_pretrained(hparams.text_backbone, output_hidden_states=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            "/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian"
+        )
+        self.text_backbone = AutoModel.from_pretrained("/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian", output_hidden_states=True)
 
     def forward(self, sentence):
         tokens_output = self.tokenizer(

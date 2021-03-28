@@ -4,13 +4,18 @@ import numpy as np
 import torch
 from pytorch_lightning import LightningModule
 from pytorch_lightning.metrics import F1
-from sklearn.metrics.pairwise import cosine_similarity
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
 from torchvision.transforms import transforms
 
 from models.meta_model import MetaNet
-from utils import read_csv, ShopeeDataset
+from utils import (
+    read_csv,
+    ShopeeDataset,
+    ShopeeTestDataset,
+    compute_cosine_similarity,
+    write_submission
+)
 from utils.loss import SphereProduct
 
 
@@ -73,6 +78,18 @@ class ShopeeLightning(LightningModule):
             num_workers=self.hparams.num_workers
         )
 
+    def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
+        test_lines = read_csv(self.hparams.test_csv)
+        test_dataset = ShopeeTestDataset(
+            self.hparams,
+            lines=test_lines,
+            transform=transforms.Compose([
+                transforms.Resize((self.hparams.input_size, self.hparams.input_size)),
+                transforms.ToTensor(),
+            ])
+        )
+        return DataLoader(test_dataset, batch_size=1)
+
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
             [{'params': self.model.parameters()}, {'params': self.metric_crit.parameters()}],
@@ -106,13 +123,12 @@ class ShopeeLightning(LightningModule):
     def validation_epoch_end(self, outputs: List[Any]) -> Any:
         gt = self.val_dataset.gt
         embedding_dic = {}
+        fnames = []
         for output in outputs:
             for fname, embedding in zip(output['fnames'], output['embeddings']):
                 embedding_dic[fname] = embedding
-
-        fnames, embeddings = list(embedding_dic.keys()), list(embedding_dic.values())
-        sim_matrix = cosine_similarity(embeddings)
-        sim_matrix = (sim_matrix - np.min(sim_matrix)) / (np.max(sim_matrix) - np.min(sim_matrix))
+                fnames.append(fname)
+        sim_matrix = compute_cosine_similarity(embedding_dic)
 
         TP, FP, FN = 0, 0, 0
         for i, fname in enumerate(fnames):
@@ -126,3 +142,26 @@ class ShopeeLightning(LightningModule):
         logs = {"val/f1": f1_value}
         self.logger.log_metrics(logs, step=self.current_epoch)
         self.log("val/f1", f1_value, on_step=False, on_epoch=True, prog_bar=True)
+
+    def test_step(self, batch, batch_idx):
+        fnames, imgs, sentences = batch
+        outputs = self.model((imgs, sentences))
+        return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
+
+    def test_epoch_end(self, outputs: List[Any]) -> None:
+        embedding_dic = {}
+        fnames = []
+        for output in outputs:
+            for fname, embedding in zip(output['fnames'], output['embeddings']):
+                embedding_dic[fname] = embedding
+                fnames.append(fname)
+        sim_matrix = compute_cosine_similarity(embedding_dic)
+
+        fnames = np.array(fnames)
+        submission = {'posting_id': [], 'matches': []}
+        for i, fname in enumerate(fnames):
+            pred_indices = np.where(sim_matrix[i] > 0.7)[0]
+            pred_string = ' '.join(np.unique(fnames[pred_indices]))
+            submission['posting_id'].append(fname)
+            submission['matches'].append(pred_string)
+        write_submission(submission, '/kaggle/working/')
