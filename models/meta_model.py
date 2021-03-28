@@ -1,10 +1,8 @@
+import timm
 import torch
 import torch.nn.functional as F
 from torch import nn
 from transformers import AutoTokenizer, AutoModel
-
-import timm
-from utils import mask_fill, lengths_to_mask
 
 
 def gem(x, p=3, eps=1e-6):
