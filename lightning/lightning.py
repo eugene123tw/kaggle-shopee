@@ -49,9 +49,10 @@ class ShopeeLightning(LightningModule):
             transform=albumentations.Compose([
                 albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
                 albumentations.HorizontalFlip(p=0.5),
-                albumentations.RandomBrightnessContrast(p=0.5, brightness_limit=(-0.2, 0.2),
-                                                        contrast_limit=(-0.2, 0.2)),
-                albumentations.HueSaturationValue(p=0.5, hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2),
+                albumentations.RandomBrightnessContrast(
+                    p=0.5, brightness_limit=(-0.2, 0.2), contrast_limit=(-0.2, 0.2)),
+                albumentations.HueSaturationValue(
+                    p=0.5, hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2),
                 albumentations.ShiftScaleRotate(p=0.5, shift_limit=0.0625, scale_limit=0.2, rotate_limit=20),
                 albumentations.CoarseDropout(p=0.5),
                 albumentations.Normalize(),
@@ -140,12 +141,12 @@ class ShopeeLightning(LightningModule):
             for fname, embedding in zip(output['fnames'], output['embeddings']):
                 embedding_dic[fname] = embedding
                 fnames.append(fname)
-        sim_matrix = compute_cosine_similarity(embedding_dic)
+        indices_matrix = compute_cosine_similarity(embedding_dic, threshold=0.7, batch_compute=True)
 
         TP, FP, FN = 0, 0, 0
         for i, fname in enumerate(fnames):
             gt_indices = gt[fname]
-            pred_indices = np.where(sim_matrix[i] > 0.7)[0]
+            pred_indices = indices_matrix[i]
             TP += len(set(gt_indices).intersection(set(pred_indices)))
             FP += len(set(pred_indices) - set(gt_indices))
             FN += len(set(gt_indices) - set(pred_indices))
@@ -167,12 +168,12 @@ class ShopeeLightning(LightningModule):
             for fname, embedding in zip(output['fnames'], output['embeddings']):
                 embedding_dic[fname] = embedding
                 fnames.append(fname)
-        sim_matrix = compute_cosine_similarity(embedding_dic)
+        indices_matrix = compute_cosine_similarity(embedding_dic, threshold=0.7, batch_compute=True)
 
         fnames = np.array(fnames)
         submission = {'posting_id': [], 'matches': []}
         for i, fname in enumerate(fnames):
-            pred_indices = np.where(sim_matrix[i] > 0.7)[0]
+            pred_indices = indices_matrix[i]
             pred_string = ' '.join(np.unique(fnames[pred_indices]))
             submission['posting_id'].append(fname)
             submission['matches'].append(pred_string)

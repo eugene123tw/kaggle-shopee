@@ -6,6 +6,7 @@ from typing import List, Dict
 import numpy as np
 import torch
 from sklearn.metrics.pairwise import cosine_similarity
+from sklearn.preprocessing import normalize
 
 
 def read_csv(path) -> List:
@@ -38,11 +39,36 @@ def get_class_weights(lines: np.ndarray, label_map: Dict[str, int], n_classes: i
     return class_weights
 
 
-def compute_cosine_similarity(embedding_dic: Dict[str, np.ndarray]) -> np.ndarray:
-    fnames, embeddings = list(embedding_dic.keys()), list(embedding_dic.values())
-    sim_matrix = cosine_similarity(embeddings)
-    sim_matrix = (sim_matrix - np.min(sim_matrix)) / (np.max(sim_matrix) - np.min(sim_matrix))
-    return sim_matrix
+def cosine_similarity_chunk(embeddings: np.ndarray, threshold: float) -> np.ndarray:
+    pred_indices = []
+    chunk = 1024 * 4
+
+    counter = len(embeddings) // chunk
+    if len(embeddings) % chunk != 0: counter += 1
+    for j in range(counter):
+        a = j * chunk
+        b = (j + 1) * chunk
+        b = min(b, len(embeddings))
+
+        sim_matrix = np.matmul(embeddings, embeddings[a:b].T).T
+        for k in range(b - a):
+            indices = np.where(sim_matrix[k,] > threshold)[0]
+            pred_indices.append(indices)
+    return np.array(pred_indices)
+
+
+def compute_cosine_similarity(embedding_dic: Dict[str, np.ndarray], batch_compute: bool = False,
+                              threshold: float = 0.5) -> np.ndarray:
+    embeddings = list(embedding_dic.values())
+    embeddings = normalize(embeddings)
+    if not batch_compute:
+        sim_matrix = cosine_similarity(embeddings)
+        pred_indices = []
+        for sim in sim_matrix:
+            indices = np.where(sim > threshold)[0]
+            pred_indices.append(indices)
+        return np.array(pred_indices)
+    return cosine_similarity_chunk(embeddings, threshold)
 
 
 def write_submission(submit_dict, path='.'):
