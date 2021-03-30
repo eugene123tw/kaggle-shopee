@@ -170,7 +170,7 @@ class ShopeeLightning(LightningModule):
             for fname, embedding in zip(output['fnames'], output['embeddings']):
                 embedding_dic[fname] = embedding
                 fnames.append(fname)
-        pred_matrix = compute_cosine_similarity(embedding_dic, threshold=0.5, batch_compute=True)
+        pred_matrix = compute_cosine_similarity(embedding_dic, threshold=0.5, batch_compute=False)
 
         fnames = np.array(fnames)
         submission = {'posting_id': [], 'matches': []}
