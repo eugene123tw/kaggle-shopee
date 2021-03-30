@@ -99,7 +99,7 @@ class MetaNet(nn.Module):
         self.image_backbone = ImageBackbone(hparams)
         self.sentence_backbone = SentenceBackbone(hparams)
         self.embedding_size = hparams.image_embedding_size + hparams.text_embedding_size
-        self.norm_layer = nn.BatchNorm1d(self.embedding_size)
+        self.norm_layer = nn.BatchNorm1d(hparams.output_feature_size)
 
     def forward(self, input):
         img, sentence = input

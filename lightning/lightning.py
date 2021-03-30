@@ -1,3 +1,4 @@
+import collections
 from typing import Union, List, Any
 
 import albumentations
@@ -27,14 +28,13 @@ class ShopeeLightning(LightningModule):
         self.model = MetaNet(hparams)
         # ArcFaceLoss(s=30, m=0.4)
         self.metric_crit = SphereProduct(
-            in_features=hparams.text_embedding_size + hparams.image_embedding_size,
+            in_features=hparams.output_feature_size,
             out_features=hparams.num_classes)
         self.ce = CrossEntropyLoss()
         self.f1 = F1(num_classes=hparams.num_classes)
 
     def prepare_data(self) -> None:
         lines = read_csv(self.hparams.label_csv)
-        lines = np.array(lines)
         lines = lines[np.argsort(lines[:, -1])]
         label_map = {label: i for i, label in enumerate(np.unique(np.array(lines)[:, 4]))}
         train_lines, val_lines = lines[:int(len(lines) * 0.8)], lines[int(len(lines) * 0.8):]
@@ -49,11 +49,13 @@ class ShopeeLightning(LightningModule):
             transform=albumentations.Compose([
                 albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
                 albumentations.HorizontalFlip(p=0.5),
-                albumentations.RandomBrightnessContrast(
-                    p=0.5, brightness_limit=(-0.2, 0.2), contrast_limit=(-0.2, 0.2)),
-                albumentations.HueSaturationValue(
-                    p=0.5, hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2),
-                albumentations.ShiftScaleRotate(p=0.5, shift_limit=0.0625, scale_limit=0.2, rotate_limit=20),
+                albumentations.RandomBrightnessContrast(p=0.5, brightness_limit=0.3, contrast_limit=0.3),
+                albumentations.HueSaturationValue(p=0.5),
+                albumentations.ShiftScaleRotate(
+                    p=0.5,
+                    shift_limit=0.1,
+                    scale_limit=0.2,
+                    rotate_limit=20),
                 albumentations.CoarseDropout(p=0.5),
                 albumentations.Normalize(),
                 ToTensorV2()
@@ -135,21 +137,21 @@ class ShopeeLightning(LightningModule):
 
     def validation_epoch_end(self, outputs: List[Any]) -> Any:
         gt = self.val_dataset.gt
-        embedding_dic = {}
+        embedding_dic = collections.OrderedDict()
         fnames = []
         for output in outputs:
             for fname, embedding in zip(output['fnames'], output['embeddings']):
                 embedding_dic[fname] = embedding
                 fnames.append(fname)
-        indices_matrix = compute_cosine_similarity(embedding_dic, threshold=0.7, batch_compute=True)
+        pred_matrix = compute_cosine_similarity(embedding_dic, threshold=0.5)
 
         TP, FP, FN = 0, 0, 0
         for i, fname in enumerate(fnames):
-            gt_indices = gt[fname]
-            pred_indices = indices_matrix[i]
-            TP += len(set(gt_indices).intersection(set(pred_indices)))
-            FP += len(set(pred_indices) - set(gt_indices))
-            FN += len(set(gt_indices) - set(pred_indices))
+            gt_fnames = gt[fname]
+            pred_fnames = pred_matrix[i]
+            TP += len(set(gt_fnames).intersection(set(pred_fnames)))
+            FP += len(set(pred_fnames) - set(gt_fnames))
+            FN += len(set(gt_fnames) - set(pred_fnames))
 
         f1_value = TP / (TP + 0.5 * (FP + FN))
         logs = {"val/f1": f1_value}
@@ -168,13 +170,13 @@ class ShopeeLightning(LightningModule):
             for fname, embedding in zip(output['fnames'], output['embeddings']):
                 embedding_dic[fname] = embedding
                 fnames.append(fname)
-        indices_matrix = compute_cosine_similarity(embedding_dic, threshold=0.7, batch_compute=True)
+        pred_matrix = compute_cosine_similarity(embedding_dic, threshold=0.5, batch_compute=True)
 
         fnames = np.array(fnames)
         submission = {'posting_id': [], 'matches': []}
         for i, fname in enumerate(fnames):
-            pred_indices = indices_matrix[i]
-            pred_string = ' '.join(np.unique(fnames[pred_indices]))
+            pred_fnames = pred_matrix[i]
+            pred_string = ' '.join(pred_fnames)
             submission['posting_id'].append(fname)
             submission['matches'].append(pred_string)
         write_submission(submission, '/kaggle/working/')

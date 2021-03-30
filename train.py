@@ -1,4 +1,5 @@
 import hydra
+import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
@@ -45,13 +46,15 @@ def train(config: DictConfig):
 
 
 def test(config: DictConfig):
+    # config.update(
+    #     {
+    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-03-30/18-52-26/checkpoints/epoch=09-val/f1=0.745.ckpt",
+    #         'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian'
+    #     }
+    # )
+    checkpoint = torch.load(config.weights)
     lightning = ShopeeLightning(config)
-    lightning.load_from_checkpoint(
-        config.weights,
-        pretrained=config.pretrained,
-        text_backbone=config.text_backbone,
-        data_dir=config.data_dir
-    )
+    lightning.load_state_dict(checkpoint['state_dict'])
     trainer = Trainer(gpus=config.gpus)
     trainer.test(lightning)
 

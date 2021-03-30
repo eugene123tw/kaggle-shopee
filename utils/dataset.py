@@ -1,14 +1,15 @@
 import os
-from typing import List, Callable, Optional
+from typing import Callable, Optional
 
 import cv2
+import numpy as np
 from torch.utils.data import Dataset
 
 from utils.utils import build_gt
 
 
 class ShopeeDataset(Dataset):
-    def __init__(self, hparams, label_map, lines: List, transform: Optional[Callable] = None):
+    def __init__(self, hparams, label_map, lines: np.ndarray, transform: Optional[Callable] = None):
         super(ShopeeDataset, self).__init__()
         self.hparams = hparams
         self.label_map = label_map
@@ -37,7 +38,7 @@ class ShopeeDataset(Dataset):
 
 
 class ShopeeTestDataset(Dataset):
-    def __init__(self, hparams, lines: List, transform: Optional[Callable] = None):
+    def __init__(self, hparams, lines: np.ndarray, transform: Optional[Callable] = None):
         super(ShopeeTestDataset, self).__init__()
         self.hparams = hparams
         self.lines = lines
