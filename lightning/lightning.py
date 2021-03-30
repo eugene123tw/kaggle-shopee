@@ -164,7 +164,7 @@ class ShopeeLightning(LightningModule):
         return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
 
     def test_epoch_end(self, outputs: List[Any]) -> None:
-        embedding_dic = {}
+        embedding_dic = collections.OrderedDict()
         fnames = []
         for output in outputs:
             for fname, embedding in zip(output['fnames'], output['embeddings']):
