@@ -58,10 +58,8 @@ def cosine_similarity_chunk(fnames, embeddings: np.ndarray, threshold: float) ->
     return np.array(pred_fnames)
 
 
-def compute_cosine_similarity(embedding_dic: Dict[str, np.ndarray], batch_compute: bool = False,
+def compute_cosine_similarity(embeddings, fnames, batch_compute: bool = False,
                               threshold: float = 0.9, top_k=10) -> np.ndarray:
-    embeddings = np.array(list(embedding_dic.values()))
-    fnames = np.array(list(embedding_dic.keys()))
     if not batch_compute:
         sim_matrix = cosine_similarity(embeddings)
         pred_fnames = []

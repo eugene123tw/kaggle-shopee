@@ -137,13 +137,12 @@ class ShopeeLightning(LightningModule):
 
     def validation_epoch_end(self, outputs: List[Any]) -> Any:
         gt = self.val_dataset.gt
-        embedding_dic = collections.OrderedDict()
-        fnames = []
+        fnames, embeddings = [], []
         for output in outputs:
             for fname, embedding in zip(output['fnames'], output['embeddings']):
-                embedding_dic[fname] = embedding
+                embeddings.append(embedding)
                 fnames.append(fname)
-        pred_matrix = compute_cosine_similarity(embedding_dic, threshold=0.5)
+        pred_matrix = compute_cosine_similarity(embeddings, fnames, threshold=0.5, batch_compute=True)
 
         TP, FP, FN = 0, 0, 0
         for i, fname in enumerate(fnames):
@@ -164,13 +163,12 @@ class ShopeeLightning(LightningModule):
         return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
 
     def test_epoch_end(self, outputs: List[Any]) -> None:
-        embedding_dic = collections.OrderedDict()
-        fnames = []
+        fnames, embeddings = [], []
         for output in outputs:
             for fname, embedding in zip(output['fnames'], output['embeddings']):
-                embedding_dic[fname] = embedding
+                embeddings.append(embedding)
                 fnames.append(fname)
-        pred_matrix = compute_cosine_similarity(embedding_dic, threshold=0.5, batch_compute=False)
+        pred_matrix = compute_cosine_similarity(embeddings, fnames, threshold=0.5, batch_compute=True)
 
         fnames = np.array(fnames)
         submission = {'posting_id': [], 'matches': []}
