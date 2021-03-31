@@ -1,4 +1,3 @@
-import collections
 from typing import Union, List, Any
 
 import albumentations
@@ -145,7 +144,11 @@ class ShopeeLightning(LightningModule):
 
         fnames = np.array(fnames)
         embeddings = np.array(embeddings)
-        pred_matrix = compute_cosine_similarity(embeddings, fnames, threshold=0.5, batch_compute=True)
+        pred_matrix = compute_cosine_similarity(embeddings,
+                                                fnames,
+                                                threshold=self.hparams.score_threshold,
+                                                top_k=self.hparams.top_k,
+                                                batch_compute=True)
 
         TP, FP, FN = 0, 0, 0
         for i, fname in enumerate(fnames):
@@ -173,9 +176,12 @@ class ShopeeLightning(LightningModule):
                 fnames.append(fname)
         fnames = np.array(fnames)
         embeddings = np.array(embeddings)
-        pred_matrix = compute_cosine_similarity(embeddings, fnames, threshold=0.5, batch_compute=True)
+        pred_matrix = compute_cosine_similarity(embeddings,
+                                                fnames,
+                                                threshold=self.hparams.score_threshold,
+                                                top_k=self.hparams.top_k,
+                                                batch_compute=True)
 
-        fnames = np.array(fnames)
         submission = {'posting_id': [], 'matches': []}
         for i, fname in enumerate(fnames):
             pred_fnames = pred_matrix[i]

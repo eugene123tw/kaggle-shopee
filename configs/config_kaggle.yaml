@@ -20,7 +20,7 @@ defaults:
 # read more here: https://hydra.cc/docs/next/tutorials/basic/running_your_app/working_directory
 
 testing: true
-weights: "/home/yuchunli/git/kaggle-shopee/f1=0.745.ckpt"
+weights: "/home/yuchunli/git/kaggle-shopee/f1=0.744.ckpt"
 
 # path to folder with data
 data_dir: "/home/yuchunli/_DATASET/shopee-product-matching"

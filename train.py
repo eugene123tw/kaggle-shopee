@@ -46,12 +46,13 @@ def train(config: DictConfig):
 
 
 def test(config: DictConfig):
-    # config.update(
-    #     {
-    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-03-30/18-52-26/checkpoints/epoch=09-val/f1=0.745.ckpt",
-    #         'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian'
-    #     }
-    # )
+    config.update(
+        {
+            'weights': "/home/yuchunli/git/kaggle-shopee/f1=0.746.ckpt",
+            'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
+            'pretrained': False
+        }
+    )
     checkpoint = torch.load(config.weights)
     lightning = ShopeeLightning(config)
     lightning.load_state_dict(checkpoint['state_dict'])

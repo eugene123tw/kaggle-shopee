@@ -40,7 +40,7 @@ def get_class_weights(lines: np.ndarray, label_map: Dict[str, int], n_classes: i
     return class_weights
 
 
-def cosine_similarity_chunk(fnames, embeddings: np.ndarray, threshold: float) -> np.ndarray:
+def cosine_similarity_chunk(fnames, embeddings: np.ndarray, threshold: float, top_k: int) -> np.ndarray:
     pred_fnames = []
     chunk = 1024 * 2
     embeddings = normalize(embeddings)
@@ -54,19 +54,25 @@ def cosine_similarity_chunk(fnames, embeddings: np.ndarray, threshold: float) ->
 
         sim_matrix = np.matmul(embeddings, embeddings[a:b].T).T
         for k in range(b - a):
-            pred_fnames.append(fnames[np.where(sim_matrix[k,] > threshold)[0]])
+            match_indices = np.where(sim_matrix[k,] > threshold)[0]
+            if len(match_indices) > top_k:
+                match_indices = np.argsort(sim_matrix[k,])[-top_k:]
+            pred_fnames.append(fnames[match_indices])
     return np.array(pred_fnames)
 
 
-def compute_cosine_similarity(embeddings, fnames, batch_compute: bool = False,
-                              threshold: float = 0.9, top_k=10) -> np.ndarray:
+def compute_cosine_similarity(embeddings, fnames, batch_compute: bool = False, threshold: float = 0.5,
+                              top_k: int = 50) -> np.ndarray:
     if not batch_compute:
         sim_matrix = cosine_similarity(embeddings)
         pred_fnames = []
         for sim in sim_matrix:
-            pred_fnames.append(fnames[np.where(sim > threshold)[0]])
+            match_indices = np.where(sim > threshold)[0]
+            if len(match_indices) > top_k:
+                match_indices = np.argsort(sim)[-top_k:]
+            pred_fnames.append(fnames[match_indices])
         return np.array(pred_fnames)
-    return cosine_similarity_chunk(fnames, embeddings, threshold)
+    return cosine_similarity_chunk(fnames, embeddings, threshold, top_k)
 
 
 def write_submission(submit_dict, path='.'):
