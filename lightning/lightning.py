@@ -6,6 +6,7 @@ import torch
 from albumentations.pytorch import ToTensorV2
 from pytorch_lightning import LightningModule
 from pytorch_lightning.metrics import F1
+from sklearn.model_selection import KFold
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
 
@@ -33,10 +34,18 @@ class ShopeeLightning(LightningModule):
         self.f1 = F1(num_classes=hparams.num_classes)
 
     def prepare_data(self) -> None:
+        if self.running_stage == 'test':
+            return
+
         lines = read_csv(self.hparams.label_csv)
         lines = lines[np.argsort(lines[:, -1])]
         label_map = {label: i for i, label in enumerate(np.unique(np.array(lines)[:, 4]))}
-        train_lines, val_lines = lines[:int(len(lines) * 0.8)], lines[int(len(lines) * 0.8):]
+        kf = KFold(n_splits=5)
+
+        for i, (train_indices, val_indices) in enumerate(kf.split(range(len(lines)))):
+            if i == self.hparams.fold:
+                train_lines, val_lines = lines[train_indices], lines[val_indices]
+                break
 
         # class_weights = get_class_weights(lines, label_map, self.hparams.num_classes)
         # self.metric_crit.weight = class_weights
@@ -151,14 +160,20 @@ class ShopeeLightning(LightningModule):
                                                 batch_compute=True)
 
         TP, FP, FN = 0, 0, 0
+        f1_values = []
         for i, fname in enumerate(fnames):
             gt_fnames = gt[fname]
             pred_fnames = pred_matrix[i]
-            TP += len(set(gt_fnames).intersection(set(pred_fnames)))
-            FP += len(set(pred_fnames) - set(gt_fnames))
-            FN += len(set(gt_fnames) - set(pred_fnames))
 
-        f1_value = TP / (TP + 0.5 * (FP + FN))
+            n = len(np.intersect1d(gt_fnames, pred_fnames))
+            f1_values.append(2 * n / (len(gt_fnames) + len(pred_fnames)))
+
+            # TP += len(set(gt_fnames).intersection(set(pred_fnames)))
+            # FP += len(set(pred_fnames) - set(gt_fnames))
+            # FN += len(set(gt_fnames) - set(pred_fnames))
+
+        # f1_value = TP / (TP + 0.5 * (FP + FN))
+        f1_value = np.mean(f1_values)
         logs = {"val/f1": f1_value}
         self.logger.log_metrics(logs, step=self.current_epoch)
         self.log("val/f1", f1_value, on_step=False, on_epoch=True, prog_bar=True)

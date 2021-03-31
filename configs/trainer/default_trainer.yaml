@@ -1,5 +1,6 @@
 gpus: 1
 epochs: 30
+fold: 1
 
 # post-processing
 score_threshold: 0.5
