@@ -142,6 +142,9 @@ class ShopeeLightning(LightningModule):
             for fname, embedding in zip(output['fnames'], output['embeddings']):
                 embeddings.append(embedding)
                 fnames.append(fname)
+
+        fnames = np.array(fnames)
+        embeddings = np.array(embeddings)
         pred_matrix = compute_cosine_similarity(embeddings, fnames, threshold=0.5, batch_compute=True)
 
         TP, FP, FN = 0, 0, 0
@@ -168,6 +171,8 @@ class ShopeeLightning(LightningModule):
             for fname, embedding in zip(output['fnames'], output['embeddings']):
                 embeddings.append(embedding)
                 fnames.append(fname)
+        fnames = np.array(fnames)
+        embeddings = np.array(embeddings)
         pred_matrix = compute_cosine_similarity(embeddings, fnames, threshold=0.5, batch_compute=True)
 
         fnames = np.array(fnames)
