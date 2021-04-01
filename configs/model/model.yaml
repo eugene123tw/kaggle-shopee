@@ -1,4 +1,4 @@
-input_size: 256
+input_size: 416
 backbone: efficientnet_b0
 text_backbone: cahya/distilbert-base-indonesian
 pretrained: true

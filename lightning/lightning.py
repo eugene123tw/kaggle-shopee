@@ -16,7 +16,8 @@ from utils import (
     ShopeeDataset,
     ShopeeTestDataset,
     compute_cosine_similarity,
-    write_submission
+    write_submission,
+    compute_f1_score
 )
 from utils.loss import SphereProduct
 
@@ -46,9 +47,6 @@ class ShopeeLightning(LightningModule):
             if i == self.hparams.fold:
                 train_lines, val_lines = lines[train_indices], lines[val_indices]
                 break
-
-        # class_weights = get_class_weights(lines, label_map, self.hparams.num_classes)
-        # self.metric_crit.weight = class_weights
 
         self.train_dataset = ShopeeDataset(
             self.hparams,
@@ -153,30 +151,19 @@ class ShopeeLightning(LightningModule):
 
         fnames = np.array(fnames)
         embeddings = np.array(embeddings)
-        pred_matrix = compute_cosine_similarity(embeddings,
-                                                fnames,
-                                                threshold=self.hparams.score_threshold,
-                                                top_k=self.hparams.top_k,
-                                                batch_compute=True)
 
-        TP, FP, FN = 0, 0, 0
-        f1_values = []
-        for i, fname in enumerate(fnames):
-            gt_fnames = gt[fname]
-            pred_fnames = pred_matrix[i]
+        best_value = -1
+        best_thres = self.hparams.score_threshold
+        for thres in np.arange(0.5, 0.95, 0.05):
+            f1_value = compute_f1_score(embeddings, fnames, gt, threshold=thres,
+                                        top_k=self.hparams.top_k)
+            if f1_value > best_value:
+                best_thres = thres
+                best_value = f1_value
 
-            n = len(np.intersect1d(gt_fnames, pred_fnames))
-            f1_values.append(2 * n / (len(gt_fnames) + len(pred_fnames)))
-
-            # TP += len(set(gt_fnames).intersection(set(pred_fnames)))
-            # FP += len(set(pred_fnames) - set(gt_fnames))
-            # FN += len(set(gt_fnames) - set(pred_fnames))
-
-        # f1_value = TP / (TP + 0.5 * (FP + FN))
-        f1_value = np.mean(f1_values)
-        logs = {"val/f1": f1_value}
+        logs = {"val/f1": best_value, 'val/score-thres': best_thres}
         self.logger.log_metrics(logs, step=self.current_epoch)
-        self.log("val/f1", f1_value, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/f1", best_value, on_step=False, on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
         fnames, imgs, sentences = batch

@@ -75,6 +75,26 @@ def compute_cosine_similarity(embeddings, fnames, batch_compute: bool = False, t
     return cosine_similarity_chunk(fnames, embeddings, threshold, top_k)
 
 
+def compute_f1_score(embeddings: np.ndarray, fnames: np.array, gt: Dict, threshold: float, top_k: int,
+                     batch_compute: bool = False) -> float:
+    pred_matrix = compute_cosine_similarity(embeddings,
+                                            fnames,
+                                            threshold=threshold,
+                                            top_k=top_k,
+                                            batch_compute=batch_compute)
+
+    TP, FP, FN = 0, 0, 0
+    for i, fname in enumerate(fnames):
+        gt_fnames = gt[fname]
+        pred_fnames = pred_matrix[i]
+        TP += len(set(gt_fnames).intersection(set(pred_fnames)))
+        FP += len(set(pred_fnames) - set(gt_fnames))
+        FN += len(set(gt_fnames) - set(pred_fnames))
+
+    f1_value = TP / (TP + 0.5 * (FP + FN))
+    return f1_value
+
+
 def write_submission(submit_dict, path='.'):
     with open(os.path.join(path, 'submission.csv'), "w") as f:
         writer = csv.writer(f)
