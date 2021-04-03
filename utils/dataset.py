@@ -9,11 +9,12 @@ from utils.utils import build_gt
 
 
 class ShopeeDataset(Dataset):
-    def __init__(self, hparams, label_map, lines: np.ndarray, transform: Optional[Callable] = None):
+    def __init__(self, hparams, label_map, lines: np.ndarray, input_type: str, transform: Optional[Callable] = None):
         super(ShopeeDataset, self).__init__()
         self.hparams = hparams
         self.label_map = label_map
         self.lines = lines
+        self.input_type = input_type
         self.transform = transform
         self.gt = build_gt(self.lines)
 
@@ -25,6 +26,7 @@ class ShopeeDataset(Dataset):
         fname = line[0]
         sentence = line[3]
         label = self.label_map[line[-1]]
+        gt = self.gt[fname]
 
         img_path = os.path.join(self.hparams.train_dir, line[1])
         img = cv2.imread(img_path)
@@ -34,7 +36,7 @@ class ShopeeDataset(Dataset):
             res = self.transform(image=img)
             img = res['image']
 
-        return fname, img, sentence, label
+        return fname, img, sentence, label, gt
 
 
 class ShopeeTestDataset(Dataset):

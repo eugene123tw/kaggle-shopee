@@ -10,6 +10,8 @@ from lightning import *
 
 def train(config: DictConfig):
     lightning = ShopeeLightning(config)
+    # lightning = MultiModelShopeeLightning(config)
+    data_module = ShopeeTrainValDataModule(config, input_type=config.input_type)
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=config.model_checkpoint.dirpath,
@@ -33,7 +35,6 @@ def train(config: DictConfig):
         log_model=True
     )
     trainer = Trainer(
-        auto_scale_batch_size='binsearch',
         gpus=config.gpus,
         max_epochs=config.epochs,
         logger=logger,
@@ -42,13 +43,13 @@ def train(config: DictConfig):
             stopping_callback
         ],
     )
-    trainer.fit(lightning)
+    trainer.fit(lightning, data_module)
 
 
 def test(config: DictConfig):
     config.update(
         {
-            'weights': "/home/yuchunli/git/kaggle-shopee/f1=0.746.ckpt",
+            'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-03/15-05-32/checkpoints/epoch=1-val/f1=0.700.ckpt",
             'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
             'pretrained': False
         }
@@ -60,7 +61,7 @@ def test(config: DictConfig):
     trainer.test(lightning)
 
 
-@hydra.main(config_path="configs/", config_name="config.yaml")
+@hydra.main(config_path="configs/", config_name="config_kaggle.yaml")
 def main(config: DictConfig):
     if not config.testing:
         return train(config)

@@ -77,16 +77,14 @@ class SentenceBackbone(nn.Module):
             list(sentence),
             return_tensors="pt",
             padding=True,
-            return_length=True,
-            return_token_type_ids=False,
-            return_attention_mask=False,
-            truncation="only_first",
+            return_length=False,
+            return_attention_mask=True,
+            truncation=True,
             max_length=self.hparams.sentence_max_length,
         )
-        tokens, token_length = tokens_output["input_ids"], tokens_output["length"]
+        tokens, attention_mask = tokens_output["input_ids"], tokens_output["attention_mask"]
 
-        tokens = tokens[:, : token_length.max()].cuda()
-        word_embeddings = self.text_backbone(tokens)[0]
+        word_embeddings = self.text_backbone(tokens.cuda(), attention_mask.cuda())[0]
 
         # obtaining CLS token state which is the first token.
         return word_embeddings[:, 0, :]

@@ -1,7 +1,7 @@
 import csv
 import os
 from collections import OrderedDict, Counter
-from typing import Dict
+from typing import Dict, List
 
 import numpy as np
 import torch
@@ -40,8 +40,8 @@ def get_class_weights(lines: np.ndarray, label_map: Dict[str, int], n_classes: i
     return class_weights
 
 
-def cosine_similarity_chunk(fnames, embeddings: np.ndarray, threshold: float, top_k: int) -> np.ndarray:
-    pred_fnames = []
+def cosine_similarity_chunk(fnames, embeddings: np.ndarray, threshold: float, top_k: int) -> Dict:
+    pred_fnames = {}
     chunk = 1024 * 2
     embeddings = normalize(embeddings)
     counter = len(embeddings) // chunk
@@ -57,36 +57,28 @@ def cosine_similarity_chunk(fnames, embeddings: np.ndarray, threshold: float, to
             match_indices = np.where(sim_matrix[k,] > threshold)[0]
             if len(match_indices) > top_k:
                 match_indices = np.argsort(sim_matrix[k,])[-top_k:]
-            pred_fnames.append(fnames[match_indices])
-    return np.array(pred_fnames)
+            pred_fnames[fnames[a + k]] = fnames[match_indices]
+    return pred_fnames
 
 
 def compute_cosine_similarity(embeddings, fnames, batch_compute: bool = False, threshold: float = 0.5,
-                              top_k: int = 50) -> np.ndarray:
+                              top_k: int = 50) -> Dict:
     if not batch_compute:
         sim_matrix = cosine_similarity(embeddings)
-        pred_fnames = []
-        for sim in sim_matrix:
+        pred_fnames = {}
+        for i, sim in enumerate(sim_matrix):
             match_indices = np.where(sim > threshold)[0]
             if len(match_indices) > top_k:
                 match_indices = np.argsort(sim)[-top_k:]
-            pred_fnames.append(fnames[match_indices])
-        return np.array(pred_fnames)
+            pred_fnames[fnames[i]] = fnames[match_indices]
+        return pred_fnames
     return cosine_similarity_chunk(fnames, embeddings, threshold, top_k)
 
 
-def compute_f1_score(embeddings: np.ndarray, fnames: np.array, gt: Dict, threshold: float, top_k: int,
-                     batch_compute: bool = False) -> float:
-    pred_matrix = compute_cosine_similarity(embeddings,
-                                            fnames,
-                                            threshold=threshold,
-                                            top_k=top_k,
-                                            batch_compute=batch_compute)
-
+def compute_f1_score(pred_dict: Dict, gt: Dict) -> float:
     TP, FP, FN = 0, 0, 0
-    for i, fname in enumerate(fnames):
-        gt_fnames = gt[fname]
-        pred_fnames = pred_matrix[i]
+    for fname, gt_fnames in gt.items():
+        pred_fnames = pred_dict[fname]
         TP += len(set(gt_fnames).intersection(set(pred_fnames)))
         FP += len(set(pred_fnames) - set(gt_fnames))
         FN += len(set(gt_fnames) - set(pred_fnames))
@@ -95,8 +87,29 @@ def compute_f1_score(embeddings: np.ndarray, fnames: np.array, gt: Dict, thresho
     return f1_value
 
 
+def combine_pred_dicts(predictions: List[Dict]) -> Dict:
+    combined_dict = {}
+    for pred_dict in predictions:
+        for fname, pred in pred_dict.items():
+            if fname in combined_dict:
+                combined_dict[fname] = np.intersect1d(combined_dict[fname], pred)
+            else:
+                combined_dict[fname] = pred
+    return combined_dict
+
+
 def write_submission(submit_dict, path='.'):
     with open(os.path.join(path, 'submission.csv'), "w") as f:
         writer = csv.writer(f)
         writer.writerow(['posting_id', 'matches'])
-        writer.writerows(zip(submit_dict['posting_id'], submit_dict['matches']))
+        for fname, pred in submit_dict.items():
+            writer.writerow([fname, pred])
+
+
+def collate(batch):
+    fnames = [item[0] for item in batch]
+    imgs = torch.stack([item[1] for item in batch], 0)
+    sentences = [item[2] for item in batch]
+    labels = torch.tensor([item[3] for item in batch])
+    gt = [item[4] for item in batch]
+    return fnames, imgs, sentences, labels, gt

@@ -6,18 +6,18 @@ import torch
 from albumentations.pytorch import ToTensorV2
 from pytorch_lightning import LightningModule
 from pytorch_lightning.metrics import F1
-from sklearn.model_selection import KFold
+from sklearn.feature_extraction.text import TfidfVectorizer
 from torch.nn import CrossEntropyLoss
 from torch.utils.data import DataLoader
 
 from models.meta_model import MetaNet
 from utils import (
     read_csv,
-    ShopeeDataset,
     ShopeeTestDataset,
     compute_cosine_similarity,
     write_submission,
-    compute_f1_score
+    compute_f1_score,
+    combine_pred_dicts
 )
 from utils.loss import SphereProduct
 
@@ -33,66 +33,6 @@ class ShopeeLightning(LightningModule):
             out_features=hparams.num_classes)
         self.ce = CrossEntropyLoss()
         self.f1 = F1(num_classes=hparams.num_classes)
-
-    def prepare_data(self) -> None:
-        if self.running_stage == 'test':
-            return
-
-        lines = read_csv(self.hparams.label_csv)
-        lines = lines[np.argsort(lines[:, -1])]
-        label_map = {label: i for i, label in enumerate(np.unique(np.array(lines)[:, 4]))}
-        kf = KFold(n_splits=5)
-
-        for i, (train_indices, val_indices) in enumerate(kf.split(range(len(lines)))):
-            if i == self.hparams.fold:
-                train_lines, val_lines = lines[train_indices], lines[val_indices]
-                break
-
-        self.train_dataset = ShopeeDataset(
-            self.hparams,
-            lines=train_lines,
-            label_map=label_map,
-            transform=albumentations.Compose([
-                albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
-                albumentations.HorizontalFlip(p=0.5),
-                albumentations.RandomBrightnessContrast(p=0.5, brightness_limit=0.3, contrast_limit=0.3),
-                albumentations.HueSaturationValue(p=0.5),
-                albumentations.ShiftScaleRotate(
-                    p=0.5,
-                    shift_limit=0.1,
-                    scale_limit=0.2,
-                    rotate_limit=20),
-                albumentations.CoarseDropout(p=0.5),
-                albumentations.Normalize(),
-                ToTensorV2()
-            ])
-        )
-
-        self.val_dataset = ShopeeDataset(
-            self.hparams,
-            lines=val_lines,
-            label_map=label_map,
-            transform=albumentations.Compose([
-                albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
-                albumentations.Normalize(),
-                ToTensorV2()
-            ])
-        )
-
-    def val_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        return DataLoader(
-            self.val_dataset,
-            batch_size=self.hparams.batch_size,
-            num_workers=self.hparams.num_workers
-        )
-
-    def train_dataloader(self) -> Any:
-        return DataLoader(
-            self.train_dataset,
-            shuffle=True,
-            batch_size=self.hparams.batch_size,
-            num_workers=self.hparams.num_workers
-        )
 
     def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         test_lines = read_csv(self.hparams.test_csv)
@@ -121,7 +61,7 @@ class ShopeeLightning(LightningModule):
         return self.model(x)
 
     def training_step(self, batch, batch_idx):
-        fnames, imgs, sentences, labels = batch
+        fnames, imgs, sentences, labels, gt = batch
         outputs = self.model((imgs, sentences))
         f = self.metric_crit(outputs, labels)
         pred_values, pred_indices = torch.max(f, dim=-1)
@@ -137,57 +77,90 @@ class ShopeeLightning(LightningModule):
         self.log("train/f1", f1_value, on_step=False, on_epoch=True, prog_bar=True)
 
     def validation_step(self, batch, batch_idx):
-        fnames, imgs, sentences, labels = batch
+        fnames, imgs, sentences, labels, gt = batch
         outputs = self.model((imgs, sentences))
-        return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
+        return {
+            'fnames': fnames,
+            'embeddings': outputs.detach().cpu().numpy(),
+            'gt': gt,
+            'sentences': sentences
+        }
 
     def validation_epoch_end(self, outputs: List[Any]) -> Any:
-        gt = self.val_dataset.gt
-        fnames, embeddings = [], []
+        gt = {}
+        fnames, embeddings, sentences = [], [], []
         for output in outputs:
-            for fname, embedding in zip(output['fnames'], output['embeddings']):
+            for fname, embedding, fname_gt, sentence in zip(
+                    output['fnames'],
+                    output['embeddings'],
+                    output['gt'],
+                    output['sentences'],
+            ):
+                gt[fname] = fname_gt
                 embeddings.append(embedding)
                 fnames.append(fname)
+                sentences.append(sentence)
 
         fnames = np.array(fnames)
         embeddings = np.array(embeddings)
+        model = TfidfVectorizer(stop_words='english', binary=True, max_features=25000)
+        tfidf_embeddings = model.fit_transform(sentences).toarray()
 
-        best_value = -1
-        best_thres = self.hparams.score_threshold
-        for thres in np.arange(0.5, 0.95, 0.05):
-            f1_value = compute_f1_score(embeddings, fnames, gt, threshold=thres,
-                                        top_k=self.hparams.top_k)
-            if f1_value > best_value:
-                best_thres = thres
-                best_value = f1_value
+        tfidf_pred_dict = compute_cosine_similarity(
+            tfidf_embeddings, fnames, batch_compute=True,
+            threshold=self.hparams.score_threshold, top_k=self.hparams.top_k)
+        del tfidf_embeddings
 
-        logs = {"val/f1": best_value, 'val/score-thres': best_thres}
+        meta_pred_dict = compute_cosine_similarity(
+            embeddings, fnames, batch_compute=True,
+            threshold=self.hparams.score_threshold, top_k=self.hparams.top_k)
+        del embeddings
+
+        pred_dict = combine_pred_dicts([tfidf_pred_dict, meta_pred_dict])
+
+        f1_value = compute_f1_score(pred_dict, gt)
+
+        logs = {"val/f1": f1_value}
         self.logger.log_metrics(logs, step=self.current_epoch)
-        self.log("val/f1", best_value, on_step=False, on_epoch=True, prog_bar=True)
+        self.log("val/f1", f1_value, on_step=False, on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
         fnames, imgs, sentences = batch
         outputs = self.model((imgs, sentences))
-        return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
+        return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy(), 'sentences': sentences}
 
     def test_epoch_end(self, outputs: List[Any]) -> None:
-        fnames, embeddings = [], []
+        fnames, embeddings, sentences = [], [], []
         for output in outputs:
-            for fname, embedding in zip(output['fnames'], output['embeddings']):
+            for fname, embedding, sentence in zip(
+                    output['fnames'],
+                    output['embeddings'],
+                    output['sentences']
+            ):
                 embeddings.append(embedding)
                 fnames.append(fname)
-        fnames = np.array(fnames)
-        embeddings = np.array(embeddings)
-        pred_matrix = compute_cosine_similarity(embeddings,
-                                                fnames,
-                                                threshold=self.hparams.score_threshold,
-                                                top_k=self.hparams.top_k,
-                                                batch_compute=True)
+                sentences.append(sentence)
 
-        submission = {'posting_id': [], 'matches': []}
+        fnames = np.array(fnames)
+
+        model = TfidfVectorizer(stop_words='english', binary=True, max_features=25000)
+        tfidf_embeddings = model.fit_transform(sentences).toarray()
+
+        tfidf_pred_dict = compute_cosine_similarity(
+            tfidf_embeddings, fnames, batch_compute=True,
+            threshold=self.hparams.score_threshold, top_k=self.hparams.top_k)
+        del tfidf_embeddings
+
+        embeddings = np.array(embeddings)
+        pred_dict = compute_cosine_similarity(embeddings,
+                                              fnames,
+                                              threshold=self.hparams.score_threshold,
+                                              top_k=self.hparams.top_k,
+                                              batch_compute=True)
+        pred_dict = combine_pred_dicts([tfidf_pred_dict, pred_dict])
+        result = {}
         for i, fname in enumerate(fnames):
-            pred_fnames = pred_matrix[i]
+            pred_fnames = pred_dict[fname]
             pred_string = ' '.join(pred_fnames)
-            submission['posting_id'].append(fname)
-            submission['matches'].append(pred_string)
-        write_submission(submission, '/kaggle/working/')
+            result[fname] = pred_string
+        write_submission(result, '/kaggle/working/')
