@@ -123,10 +123,7 @@ class ShopeeLightning(LightningModule):
     def test_epoch_end(self, outputs: List[Any]) -> None:
         fnames, embeddings = [], []
         for output in outputs:
-            for fname, embedding, sentence in zip(
-                    output['fnames'],
-                    output['embeddings'],
-            ):
+            for fname, embedding in zip(output['fnames'], output['embeddings']):
                 embeddings.append(embedding)
                 fnames.append(fname)
 
