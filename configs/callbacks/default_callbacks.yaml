@@ -1,14 +1,14 @@
 model_checkpoint:
-    monitor: "val/f1"      # name of the logged metric which determines when model is improving
-    save_top_k: 2           # save k best models (determined by above metric)
-    save_last: false         # additionaly always save model from last epoch
-    mode: "max"             # can be "max" or "min"
-    dirpath: 'checkpoints/'
-    filename: '{epoch}-{val/f1:.3f}'
+  monitor: "val/f1"      # name of the logged metric which determines when model is improving
+  save_top_k: 2           # save k best models (determined by above metric)
+  save_last: false         # additionaly always save model from last epoch
+  mode: "max"             # can be "max" or "min"
+  dirpath: 'checkpoints/'
+  filename: '{epoch}-{val/f1:.3f}'
 
 
 early_stopping:
-    monitor: "val/f1"      # name of the logged metric which determines when model is improving
-    patience: 3            # how many epochs of not improving until training stops
-    mode: "max"             # can be "max" or "min"
-    min_delta: 0.0          # minimum change in the monitored metric needed to qualify as an improvement
+  monitor: "val/f1"      # name of the logged metric which determines when model is improving
+  patience: 3            # how many epochs of not improving until training stops
+  mode: "max"             # can be "max" or "min"
+  min_delta: 0.0          # minimum change in the monitored metric needed to qualify as an improvement

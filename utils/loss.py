@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.nn import Parameter
 
 
-class ArcMarginProduct(nn.Module):
+class SimplifiedArcMarginProduct(nn.Module):
     def __init__(self, in_features, out_features):
         super().__init__()
         self.weight = nn.Parameter(torch.Tensor(out_features, in_features))
@@ -129,7 +129,7 @@ class SphereProduct(nn.Module):
                + ', m=' + str(self.m) + ')'
 
 
-class ComplexArcMarginProduct(nn.Module):
+class ArcMarginProduct(nn.Module):
     r"""Implement of large margin arc distance: :
         Args:
             in_features: size of each input sample
@@ -140,7 +140,7 @@ class ComplexArcMarginProduct(nn.Module):
         """
 
     def __init__(self, in_features, out_features, s=30.0, m=0.50, easy_margin=False):
-        super(ComplexArcMarginProduct, self).__init__()
+        super(ArcMarginProduct, self).__init__()
         self.in_features = in_features
         self.out_features = out_features
         self.s = s

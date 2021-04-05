@@ -1,22 +1,20 @@
 import os
-from typing import Callable, Optional
+from typing import Callable, Optional, Dict
 
 import cv2
 import numpy as np
 from torch.utils.data import Dataset
 
-from utils.utils import build_gt
-
 
 class ShopeeDataset(Dataset):
-    def __init__(self, hparams, label_map, lines: np.ndarray, input_type: str, transform: Optional[Callable] = None):
+    def __init__(self, hparams, label_map, lines: np.ndarray, gt_dict: Dict,
+                 transform: Optional[Callable] = None):
         super(ShopeeDataset, self).__init__()
         self.hparams = hparams
         self.label_map = label_map
         self.lines = lines
-        self.input_type = input_type
         self.transform = transform
-        self.gt = build_gt(self.lines)
+        self.gt = gt_dict
 
     def __len__(self):
         return len(self.lines)

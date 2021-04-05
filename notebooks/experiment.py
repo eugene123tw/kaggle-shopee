@@ -8,7 +8,7 @@ from torch.utils.data import DataLoader
 from torchmetrics import F1
 from torchvision import datasets, transforms
 
-from utils.loss import ArcMarginProduct, SphereProduct
+from utils.loss import SphereProduct
 
 
 class Net(nn.Module):

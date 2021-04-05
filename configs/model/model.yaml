@@ -1,11 +1,11 @@
-input_size: 416
-backbone: efficientnet_b0
+input_size: 256
+center_crop: 224
+backbone: resnet50d
 text_backbone: cahya/distilbert-base-indonesian
 pretrained: true
 image_embedding_size: 256
 text_embedding_size: 768
 output_feature_size: 1024
-sentence_max_length: 16
+sentence_max_length: 512
 p_trainable: true
-neck: option-D
-input_type: image
+neck: batchnorm

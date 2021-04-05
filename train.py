@@ -11,7 +11,7 @@ from lightning import *
 def train(config: DictConfig):
     lightning = ShopeeLightning(config)
     # lightning = MultiModelShopeeLightning(config)
-    data_module = ShopeeTrainValDataModule(config, input_type=config.input_type)
+    data_module = ShopeeTrainValDataModule(config)
 
     checkpoint_callback = ModelCheckpoint(
         dirpath=config.model_checkpoint.dirpath,
@@ -61,7 +61,7 @@ def test(config: DictConfig):
     trainer.test(lightning)
 
 
-@hydra.main(config_path="configs/", config_name="config_kaggle.yaml")
+@hydra.main(config_path="configs/", config_name="config.yaml")
 def main(config: DictConfig):
     if not config.testing:
         return train(config)

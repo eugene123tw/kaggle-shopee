@@ -1,6 +1,7 @@
 gpus: 1
-epochs: 30
+epochs: 50
 fold: 1
+random_seed: 42
 
 # post-processing
 score_threshold: 0.5

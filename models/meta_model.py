@@ -32,7 +32,13 @@ class ImageBackbone(nn.Module):
         self.hparams = hparams
 
         self.backbone = timm.create_model(hparams.backbone, pretrained=self.hparams.pretrained)
-        self.out_features = self.backbone.classifier.in_features
+
+        if 'resnet' in hparams.backbone:
+            self.out_features = self.backbone.fc.in_features
+        elif 'efficientnet':
+            self.out_features = self.backbone.classifier.in_features
+        else:
+            raise NotImplemented
 
         # Define Last Pooling Layer
         self.global_pool = GeM(p_trainable=hparams.p_trainable)
@@ -53,7 +59,7 @@ class ImageBackbone(nn.Module):
             )
         else:
             self.neck = nn.Sequential(
-                nn.Linear(self.out_features, hparams.image_embedding_size, bias=False),
+                nn.Linear(self.out_features, hparams.image_embedding_size, bias=True),
                 nn.BatchNorm1d(hparams.image_embedding_size),
             )
 
@@ -71,6 +77,7 @@ class SentenceBackbone(nn.Module):
         self.hparams = hparams
         self.tokenizer = AutoTokenizer.from_pretrained(hparams.text_backbone)
         self.text_backbone = AutoModel.from_pretrained(hparams.text_backbone, output_hidden_states=True)
+        self.norm = nn.BatchNorm1d(hparams.text_embedding_size)
 
     def forward(self, sentence):
         tokens_output = self.tokenizer(
@@ -78,16 +85,18 @@ class SentenceBackbone(nn.Module):
             return_tensors="pt",
             padding=True,
             return_length=False,
-            return_attention_mask=True,
-            truncation=True,
+            return_token_type_ids=False,
+            return_attention_mask=False,
+            truncation="only_first",
             max_length=self.hparams.sentence_max_length,
         )
-        tokens, attention_mask = tokens_output["input_ids"], tokens_output["attention_mask"]
+        tokens = tokens_output["input_ids"]
 
-        word_embeddings = self.text_backbone(tokens.cuda(), attention_mask.cuda())[0]
+        word_embeddings = self.text_backbone(tokens.cuda())[0]
+        word_embeddings = self.norm(word_embeddings[:, 0, :])
 
         # obtaining CLS token state which is the first token.
-        return word_embeddings[:, 0, :]
+        return word_embeddings
 
 
 class MetaNet(nn.Module):
@@ -97,7 +106,6 @@ class MetaNet(nn.Module):
         self.image_backbone = ImageBackbone(hparams)
         self.sentence_backbone = SentenceBackbone(hparams)
         self.embedding_size = hparams.image_embedding_size + hparams.text_embedding_size
-        self.norm_layer = nn.BatchNorm1d(hparams.output_feature_size)
 
     def forward(self, input):
         img, sentence = input
@@ -105,5 +113,4 @@ class MetaNet(nn.Module):
         sentence_embed = self.sentence_backbone(sentence)
 
         x = torch.cat((img_embed, sentence_embed), -1)
-        x = self.norm_layer(x)
         return x
