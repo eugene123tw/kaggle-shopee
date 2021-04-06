@@ -10,8 +10,8 @@ from torch.utils.data import DataLoader
 from utils import (
     read_csv,
     ShopeeDataset,
-    collate,
-    build_gt
+    ShopeeTestDataset,
+    collate
 )
 
 
@@ -27,11 +27,7 @@ class ShopeeTrainValDataModule(LightningDataModule):
         lines = read_csv(self.hparams.label_csv)
         label_map = {label: i for i, label in enumerate(np.unique(np.array(lines)[:, 4]))}
 
-        # TODO: WHY SORTING AFFECT SCORE SO MUCH?
-        lines = lines[np.argsort(lines[:, -1])]
-        gt_dict = build_gt(lines)
-
-        kf = KFold(n_splits=5)
+        kf = KFold(n_splits=5, shuffle=True, random_state=self.hparams.random_seed)
         for i, (train_indices, val_indices) in enumerate(kf.split(range(len(lines)))):
             if i == self.hparams.fold:
                 train_lines, val_lines = lines[train_indices], lines[val_indices]
@@ -40,7 +36,6 @@ class ShopeeTrainValDataModule(LightningDataModule):
         self.train_dataset = ShopeeDataset(
             self.hparams,
             lines=train_lines,
-            gt_dict=gt_dict,
             label_map=label_map,
             transform=self.train_transforms(),
         )
@@ -48,7 +43,6 @@ class ShopeeTrainValDataModule(LightningDataModule):
         self.val_dataset = ShopeeDataset(
             self.hparams,
             lines=val_lines,
-            gt_dict=gt_dict,
             label_map=label_map,
             transform=self.val_transforms(),
         )
@@ -95,4 +89,33 @@ class ShopeeTrainValDataModule(LightningDataModule):
             albumentations.Normalize(),
             ToTensorV2(),
         ])
+        return transform
+
+
+class ShopeeTestDataModule(LightningDataModule):
+    def __init__(self, hparams):
+        super(ShopeeTestDataModule, self).__init__()
+        self.hparams = hparams
+
+    def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
+        test_lines = read_csv(self.hparams.test_csv)
+        test_dataset = ShopeeTestDataset(
+            self.hparams,
+            lines=test_lines,
+            transform=self.test_transforms()
+        )
+        return DataLoader(
+            test_dataset,
+            batch_size=self.hparams.batch_size,
+            num_workers=self.hparams.num_workers
+        )
+
+    def test_transforms(self):
+        transform = albumentations.Compose([
+            albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
+            albumentations.CenterCrop(height=self.hparams.center_crop, width=self.hparams.center_crop),
+            albumentations.Normalize(),
+            ToTensorV2(),
+        ])
+
         return transform

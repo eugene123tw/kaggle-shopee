@@ -1,3 +1,3 @@
 from .lightning import ShopeeLightning
 from .multi_lightning import MultiModelShopeeLightning
-from .data_lightning import ShopeeTrainValDataModule
+from .data_lightning import ShopeeTrainValDataModule, ShopeeTestDataModule

@@ -1,4 +1,7 @@
+from typing import Dict
+
 import hydra
+import numpy as np
 import torch
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -6,11 +9,16 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
 from lightning import *
+from utils import compute_cosine_similarity, combine_pred_dicts, write_submission
+
+try:
+    from cuml.feature_extraction.text import TfidfVectorizer
+except:
+    from sklearn.feature_extraction.text import TfidfVectorizer
 
 
 def train(config: DictConfig):
     lightning = ShopeeLightning(config)
-    # lightning = MultiModelShopeeLightning(config)
     data_module = ShopeeTrainValDataModule(config)
 
     checkpoint_callback = ModelCheckpoint(
@@ -46,22 +54,46 @@ def train(config: DictConfig):
     trainer.fit(lightning, data_module)
 
 
+def tfidf(config, test_dm) -> Dict:
+    model = TfidfVectorizer(stop_words='english', binary=True, max_features=25_000)
+
+    test_dm.setup('test')
+    fnames, sentecnes = [], []
+    for batch in test_dm.test_dataloader():
+        fnames.extend(batch[0])
+        sentecnes.extend(batch[2])
+    text_embeddings = model.fit_transform(sentecnes).toarray()
+    pred_dict = compute_cosine_similarity(text_embeddings,
+                                          np.array(fnames),
+                                          threshold=config.score_threshold,
+                                          top_k=config.top_k,
+                                          batch_compute=True)
+    return pred_dict
+
+
 def test(config: DictConfig):
-    config.update(
-        {
-            'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-03/15-05-32/checkpoints/epoch=1-val/f1=0.700.ckpt",
-            'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
-            'pretrained': False
-        }
-    )
+    # config.update(
+    #     {
+    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-05/21-25-16/checkpoints/epoch=9-val/f1=0.866.ckpt",
+    #         'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
+    #         'pretrained': False
+    #     }
+    # )
+
     checkpoint = torch.load(config.weights)
     lightning = ShopeeLightning(config)
     lightning.load_state_dict(checkpoint['state_dict'])
+    test_dm = ShopeeTestDataModule(config)
     trainer = Trainer(gpus=config.gpus)
-    trainer.test(lightning)
+    trainer.test(lightning, datamodule=test_dm)
+    dnn_result = lightning.test_results
+
+    tfide_result = tfidf(config, test_dm)
+    result = combine_pred_dicts([dnn_result, tfide_result])
+    write_submission(result, '/kaggle/working/')
 
 
-@hydra.main(config_path="configs/", config_name="config.yaml")
+@hydra.main(config_path="configs/", config_name="config_kaggle.yaml")
 def main(config: DictConfig):
     if not config.testing:
         return train(config)

@@ -103,6 +103,7 @@ def write_submission(submit_dict, path='.'):
         writer = csv.writer(f)
         writer.writerow(['posting_id', 'matches'])
         for fname, pred in submit_dict.items():
+            pred = ' '.join(pred)
             writer.writerow([fname, pred])
 
 

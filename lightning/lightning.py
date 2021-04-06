@@ -1,20 +1,14 @@
-from typing import Union, List, Any
+from typing import List, Any, Dict
 
-import albumentations
 import numpy as np
 import torch
-from albumentations.pytorch import ToTensorV2
 from pytorch_lightning import LightningModule
 from pytorch_lightning.metrics import F1
 from torch.nn import CrossEntropyLoss
-from torch.utils.data import DataLoader
 
 from models.meta_model import MetaNet
 from utils import (
-    read_csv,
-    ShopeeTestDataset,
     compute_cosine_similarity,
-    write_submission,
     compute_f1_score
 )
 from utils.loss import SphereProduct
@@ -31,24 +25,6 @@ class ShopeeLightning(LightningModule):
             out_features=hparams.num_classes)
         self.ce = CrossEntropyLoss()
         self.f1 = F1(num_classes=hparams.num_classes)
-
-    def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
-        test_lines = read_csv(self.hparams.test_csv)
-        test_dataset = ShopeeTestDataset(
-            self.hparams,
-            lines=test_lines,
-            transform=albumentations.Compose([
-                albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
-                albumentations.CenterCrop(height=self.hparams.center_crop, width=self.hparams.center_crop),
-                albumentations.Normalize(),
-                ToTensorV2(),
-            ])
-        )
-        return DataLoader(
-            test_dataset,
-            batch_size=self.hparams.batch_size,
-            num_workers=self.hparams.num_workers
-        )
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(
@@ -120,7 +96,7 @@ class ShopeeLightning(LightningModule):
         outputs = self.model((imgs, sentences))
         return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
 
-    def test_epoch_end(self, outputs: List[Any]) -> None:
+    def test_epoch_end(self, outputs: List[Any]) -> Dict:
         fnames, embeddings = [], []
         for output in outputs:
             for fname, embedding in zip(output['fnames'], output['embeddings']):
@@ -137,6 +113,5 @@ class ShopeeLightning(LightningModule):
         result = {}
         for i, fname in enumerate(fnames):
             pred_fnames = pred_dict[fname]
-            pred_string = ' '.join(pred_fnames)
-            result[fname] = pred_string
-        write_submission(result, '/kaggle/working/')
+            result[fname] = pred_fnames
+        self.test_results = result
