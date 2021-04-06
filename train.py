@@ -11,10 +11,17 @@ from pytorch_lightning.loggers import WandbLogger
 from lightning import *
 from utils import compute_cosine_similarity, combine_pred_dicts, write_submission
 
+CUML_ENABLED = False
+
 try:
     from cuml.feature_extraction.text import TfidfVectorizer
+    import cudf
+
+    CUML_ENABLED = True
 except:
     from sklearn.feature_extraction.text import TfidfVectorizer
+
+    CUML_ENABLED = False
 
 
 def train(config: DictConfig):
@@ -58,11 +65,14 @@ def tfidf(config, test_dm) -> Dict:
     model = TfidfVectorizer(stop_words='english', binary=True, max_features=25_000)
 
     test_dm.setup('test')
-    fnames, sentecnes = [], []
+    fnames, sentences = [], []
     for batch in test_dm.test_dataloader():
         fnames.extend(batch[0])
-        sentecnes.extend(batch[2])
-    text_embeddings = model.fit_transform(sentecnes).toarray()
+        sentences.extend(batch[2])
+    if not CUML_ENABLED:
+        text_embeddings = model.fit_transform(sentences)
+    else:
+        text_embeddings = model.fit_transform(cudf.Series(sentences)).toarray()
     pred_dict = compute_cosine_similarity(text_embeddings,
                                           np.array(fnames),
                                           threshold=config.score_threshold,
