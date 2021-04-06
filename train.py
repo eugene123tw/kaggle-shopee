@@ -58,7 +58,7 @@ def tfidf(config, test_dm) -> Dict:
     for batch in test_dm.test_dataloader():
         fnames.extend(batch[0])
         sentences.extend(batch[2])
-    text_embeddings = model.fit_transform(sentences)
+    text_embeddings = model.fit_transform(sentences).toarray()
     pred_dict = compute_cosine_similarity(text_embeddings,
                                           np.array(fnames),
                                           threshold=config.score_threshold,
