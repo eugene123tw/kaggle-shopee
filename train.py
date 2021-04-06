@@ -7,21 +7,10 @@ from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 from lightning import *
 from utils import compute_cosine_similarity, combine_pred_dicts, write_submission
-
-CUML_ENABLED = False
-
-try:
-    from cuml.feature_extraction.text import TfidfVectorizer
-    import cudf
-
-    CUML_ENABLED = True
-except:
-    from sklearn.feature_extraction.text import TfidfVectorizer
-
-    CUML_ENABLED = False
 
 
 def train(config: DictConfig):
@@ -69,10 +58,7 @@ def tfidf(config, test_dm) -> Dict:
     for batch in test_dm.test_dataloader():
         fnames.extend(batch[0])
         sentences.extend(batch[2])
-    if not CUML_ENABLED:
-        text_embeddings = model.fit_transform(sentences)
-    else:
-        text_embeddings = model.fit_transform(cudf.Series(sentences)).toarray()
+    text_embeddings = model.fit_transform(sentences)
     pred_dict = compute_cosine_similarity(text_embeddings,
                                           np.array(fnames),
                                           threshold=config.score_threshold,
@@ -103,7 +89,7 @@ def test(config: DictConfig):
     write_submission(result, '/kaggle/working/')
 
 
-@hydra.main(config_path="configs/", config_name="config_kaggle.yaml")
+@hydra.main(config_path="configs/", config_name="config.yaml")
 def main(config: DictConfig):
     if not config.testing:
         return train(config)
