@@ -43,7 +43,7 @@ def get_class_weights(lines: np.ndarray, label_map: Dict[str, int], n_classes: i
 
 def cosine_similarity_chunk(fnames, embeddings: cp.ndarray, threshold: float, top_k: int) -> Dict:
     pred_fnames = {}
-    chunk = 1024 * 2
+    chunk = 1024
     transformer = Normalizer().fit(embeddings)
     embeddings = transformer.transform(embeddings)
     counter = len(embeddings) // chunk
