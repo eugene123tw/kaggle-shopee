@@ -3,6 +3,7 @@ from typing import List, Any, Dict
 import cupy as cp
 import numpy as np
 import torch
+import torch.nn.functional as F
 from pytorch_lightning import LightningModule
 from pytorch_lightning.metrics import F1
 from torch.nn import CrossEntropyLoss
@@ -54,7 +55,8 @@ class ShopeeLightning(LightningModule):
 
     def validation_step(self, batch, batch_idx):
         fnames, imgs, sentences, labels, gt = batch
-        outputs = self.model((imgs, sentences))
+        outputs = F.normalize(self.model((imgs, sentences)))
+
         return {
             'fnames': fnames,
             'embeddings': outputs.detach().cpu().numpy(),

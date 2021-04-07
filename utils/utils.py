@@ -7,7 +7,6 @@ import cupy as cp
 import numpy as np
 import torch
 from sklearn.metrics.pairwise import cosine_similarity
-from cuml.experimental.preprocessing import Normalizer
 
 
 def read_csv(path) -> np.ndarray:
@@ -43,9 +42,7 @@ def get_class_weights(lines: np.ndarray, label_map: Dict[str, int], n_classes: i
 
 def cosine_similarity_chunk(fnames, embeddings: cp.ndarray, threshold: float, top_k: int) -> Dict:
     pred_fnames = {}
-    chunk = 1024
-    transformer = Normalizer().fit(embeddings)
-    embeddings = transformer.transform(embeddings)
+    chunk = 1024 * 2
     counter = len(embeddings) // chunk
     if len(embeddings) % chunk != 0:
         counter += 1
