@@ -2,7 +2,7 @@ import timm
 import torch
 import torch.nn.functional as F
 from torch import nn
-from transformers import AutoTokenizer, AutoModel
+from transformers import DistilBertTokenizer, DistilBertModel
 
 
 def gem(x, p=3, eps=1e-6):
@@ -75,8 +75,8 @@ class SentenceBackbone(nn.Module):
     def __init__(self, hparams):
         super(SentenceBackbone, self).__init__()
         self.hparams = hparams
-        self.tokenizer = AutoTokenizer.from_pretrained(hparams.text_backbone)
-        self.text_backbone = AutoModel.from_pretrained(hparams.text_backbone, output_hidden_states=True)
+        self.tokenizer = DistilBertTokenizer.from_pretrained(hparams.text_backbone)
+        self.text_backbone = DistilBertModel.from_pretrained(hparams.text_backbone)
         self.norm = nn.BatchNorm1d(hparams.text_embedding_size)
 
     def forward(self, sentence):
@@ -86,13 +86,14 @@ class SentenceBackbone(nn.Module):
             padding=True,
             return_length=False,
             return_token_type_ids=False,
-            return_attention_mask=False,
+            return_attention_mask=True,
             truncation="only_first",
             max_length=self.hparams.sentence_max_length,
         )
-        tokens = tokens_output["input_ids"]
+        tokens, attention_mask = tokens_output["input_ids"], tokens_output["attention_mask"]
 
-        word_embeddings = self.text_backbone(tokens.cuda())[0]
+        output = self.text_backbone(tokens.cuda(), attention_mask.cuda())
+        word_embeddings = output.last_hidden_state
         word_embeddings = self.norm(word_embeddings[:, 0, :])
 
         # obtaining CLS token state which is the first token.

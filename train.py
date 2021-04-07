@@ -87,8 +87,6 @@ def test(config: DictConfig):
 
     tfide_result = tfidf(config, test_dm)
     result = combine_pred_dicts([dnn_result, tfide_result])
-    if len(result) != 70000:
-        raise IOError("Incorrect prediction length")
     write_submission(result, '/kaggle/working/')
 
 
