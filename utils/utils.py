@@ -3,10 +3,11 @@ import os
 from collections import OrderedDict, Counter
 from typing import Dict, List
 
+import cupy as cp
 import numpy as np
 import torch
 from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.preprocessing import normalize
+from cuml.experimental.preprocessing import Normalizer
 
 
 def read_csv(path) -> np.ndarray:
@@ -40,10 +41,11 @@ def get_class_weights(lines: np.ndarray, label_map: Dict[str, int], n_classes: i
     return class_weights
 
 
-def cosine_similarity_chunk(fnames, embeddings: np.ndarray, threshold: float, top_k: int) -> Dict:
+def cosine_similarity_chunk(fnames, embeddings: cp.ndarray, threshold: float, top_k: int) -> Dict:
     pred_fnames = {}
     chunk = 1024 * 2
-    embeddings = normalize(embeddings)
+    transformer = Normalizer().fit(embeddings)
+    embeddings = transformer.transform(embeddings)
     counter = len(embeddings) // chunk
     if len(embeddings) % chunk != 0:
         counter += 1
@@ -52,24 +54,24 @@ def cosine_similarity_chunk(fnames, embeddings: np.ndarray, threshold: float, to
         b = (j + 1) * chunk
         b = min(b, len(embeddings))
 
-        sim_matrix = np.matmul(embeddings, embeddings[a:b].T).T
+        sim_matrix = cp.matmul(embeddings, embeddings[a:b].T).T
         for k in range(b - a):
-            match_indices = np.where(sim_matrix[k,] > threshold)[0]
+            match_indices = cp.where(sim_matrix[k,] > threshold)[0]
             if len(match_indices) > top_k:
-                match_indices = np.argsort(sim_matrix[k,])[-top_k:]
-            pred_fnames[fnames[a + k]] = fnames[match_indices]
+                match_indices = cp.argsort(sim_matrix[k,])[-top_k:]
+            pred_fnames[fnames[a + k]] = fnames[match_indices.get()]
     return pred_fnames
 
 
-def compute_cosine_similarity(embeddings, fnames, batch_compute: bool = False, threshold: float = 0.5,
-                              top_k: int = 50) -> Dict:
+def compute_cosine_similarity(embeddings: cp.ndarray, fnames: np.array, batch_compute: bool = False,
+                              threshold: float = 0.5, top_k: int = 50) -> Dict:
     if not batch_compute:
         sim_matrix = cosine_similarity(embeddings)
         pred_fnames = {}
         for i, sim in enumerate(sim_matrix):
-            match_indices = np.where(sim > threshold)[0]
+            match_indices = cp.where(sim > threshold)[0]
             if len(match_indices) > top_k:
-                match_indices = np.argsort(sim)[-top_k:]
+                match_indices = cp.argsort(sim)[-top_k:]
             pred_fnames[fnames[i]] = fnames[match_indices]
         return pred_fnames
     return cosine_similarity_chunk(fnames, embeddings, threshold, top_k)

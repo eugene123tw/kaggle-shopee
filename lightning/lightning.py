@@ -1,5 +1,6 @@
 from typing import List, Any, Dict
 
+import cupy as cp
 import numpy as np
 import torch
 from pytorch_lightning import LightningModule
@@ -74,7 +75,7 @@ class ShopeeLightning(LightningModule):
                 fnames.append(fname)
 
         fnames = np.array(fnames)
-        embeddings = np.array(embeddings)
+        embeddings = cp.array(embeddings)
 
         best_f1 = 0
         best_thres = 0
@@ -104,7 +105,7 @@ class ShopeeLightning(LightningModule):
                 fnames.append(fname)
 
         fnames = np.array(fnames)
-        embeddings = np.array(embeddings)
+        embeddings = cp.array(embeddings)
         pred_dict = compute_cosine_similarity(embeddings,
                                               fnames,
                                               threshold=self.hparams.score_threshold,

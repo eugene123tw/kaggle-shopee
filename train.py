@@ -1,13 +1,14 @@
 from typing import Dict
 
+import cudf
 import hydra
 import numpy as np
 import torch
+from cuml.feature_extraction.text import TfidfVectorizer
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
-from sklearn.feature_extraction.text import TfidfVectorizer
 
 from lightning import *
 from utils import compute_cosine_similarity, combine_pred_dicts, write_submission
@@ -58,7 +59,7 @@ def tfidf(config, test_dm) -> Dict:
     for batch in test_dm.test_dataloader():
         fnames.extend(batch[0])
         sentences.extend(batch[2])
-    text_embeddings = model.fit_transform(sentences).toarray()
+    text_embeddings = model.fit_transform(cudf.Series(sentences)).toarray()
     pred_dict = compute_cosine_similarity(text_embeddings,
                                           np.array(fnames),
                                           threshold=config.score_threshold,

@@ -6,3 +6,5 @@ scikit-learn
 matplotlib
 transformers
 wandb
+timm
+albumentations
