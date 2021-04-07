@@ -52,7 +52,7 @@ def train(config: DictConfig):
 
 
 def tfidf(config, test_dm) -> Dict:
-    model = TfidfVectorizer(stop_words='english', binary=True, max_features=25_000)
+    model = TfidfVectorizer(stop_words='english', binary=True, max_features=25000)
 
     test_dm.setup('test')
     fnames, sentences = [], []
@@ -87,6 +87,8 @@ def test(config: DictConfig):
 
     tfide_result = tfidf(config, test_dm)
     result = combine_pred_dicts([dnn_result, tfide_result])
+    if len(result) != 70000:
+        raise IOError("Incorrect prediction length")
     write_submission(result, '/kaggle/working/')
 
 
