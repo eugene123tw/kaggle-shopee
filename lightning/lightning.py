@@ -96,7 +96,7 @@ class ShopeeLightning(LightningModule):
 
     def test_step(self, batch, batch_idx):
         fnames, imgs, sentences = batch
-        outputs = self.model((imgs, sentences))
+        outputs = F.normalize(self.model((imgs, sentences)))
         return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
 
     def test_epoch_end(self, outputs: List[Any]) -> Dict:
