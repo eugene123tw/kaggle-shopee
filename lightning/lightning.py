@@ -4,13 +4,14 @@ import cupy as cp
 import numpy as np
 import torch
 import torch.nn.functional as F
-from cuml.neighbors import NearestNeighbors
+
 from pytorch_lightning import LightningModule
 from pytorch_lightning.metrics import F1
 from torch.nn import CrossEntropyLoss
 
 from models.meta_model import MetaNet
 from utils import (
+    knn_similarity,
     compute_cosine_similarity,
     compute_f1_score
 )
@@ -83,9 +84,14 @@ class ShopeeLightning(LightningModule):
         best_f1 = 0
         best_thres = 0
 
-        for thres in np.arange(0.5, 0.95, 0.05):
-            pred_dict = compute_cosine_similarity(embeddings, fnames, batch_compute=True, threshold=thres,
-                                                  top_k=self.hparams.top_k)
+        for thres in np.arange(0.1, 3.0, 0.1):
+            # pred_dict = compute_cosine_similarity(embeddings, fnames, batch_compute=True, threshold=thres,
+            #                                       top_k=self.hparams.top_k)
+            pred_dict = knn_similarity(
+                embeddings,
+                fnames,
+                n_neighbors=50 if len(fnames) > 3 else len(fnames),
+                threshold=thres)
             f1_value = compute_f1_score(pred_dict, gt)
             if f1_value > best_f1:
                 best_thres = thres
@@ -110,13 +116,9 @@ class ShopeeLightning(LightningModule):
         fnames = np.array(fnames)
         embeddings = cp.array(embeddings)
 
-        knn = NearestNeighbors(n_neighbors=50 if len(fnames) > 3 else len(fnames))
-        knn.fit(embeddings)
-        distances, indices = knn.kneighbors(embeddings)
-
-        result = {}
-        for i in range(embeddings.shape[0]):
-            idx = np.where(distances[i,] < 0.5)[0]
-            ids = indices[i, idx]
-            result[fnames[i]] = fnames[ids.get()]
+        result = knn_similarity(
+            embeddings,
+            fnames,
+            n_neighbors=50 if len(fnames) > 3 else len(fnames),
+            threshold=0.9)
         self.test_results = result

@@ -7,7 +7,7 @@ import cupy as cp
 import numpy as np
 import torch
 from sklearn.metrics.pairwise import cosine_similarity
-
+from cuml.neighbors import NearestNeighbors
 
 def read_csv(path) -> np.ndarray:
     lines = []
@@ -73,6 +73,17 @@ def compute_cosine_similarity(embeddings: cp.ndarray, fnames: np.array, batch_co
         return pred_fnames
     return cosine_similarity_chunk(fnames, embeddings, threshold, top_k)
 
+def knn_similarity(embeddings: cp.ndarray, fnames: np.array, n_neighbors: int, threshold: float) -> Dict:
+    knn = NearestNeighbors(n_neighbors=n_neighbors)
+    knn.fit(embeddings)
+    distances, indices = knn.kneighbors(embeddings)
+
+    result = {}
+    for i in range(embeddings.shape[0]):
+        idx = np.where(distances[i,] < threshold)[0]
+        ids = indices[i, idx]
+        result[fnames[i]] = fnames[ids.get()]
+    return result
 
 def compute_f1_score(pred_dict: Dict, gt: Dict) -> float:
     TP, FP, FN = 0, 0, 0
