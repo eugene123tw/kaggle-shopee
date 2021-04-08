@@ -110,7 +110,7 @@ class ShopeeLightning(LightningModule):
         fnames = np.array(fnames)
         embeddings = cp.array(embeddings)
 
-        knn = NearestNeighbors(n_neighbors=3 if self.hparams.testing else 50)
+        knn = NearestNeighbors(n_neighbors=50 if len(fnames) > 3 else len(fnames))
         knn.fit(embeddings)
         distances, indices = knn.kneighbors(embeddings)
 
