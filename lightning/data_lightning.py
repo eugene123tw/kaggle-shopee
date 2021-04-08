@@ -21,9 +21,6 @@ class ShopeeTrainValDataModule(LightningDataModule):
         self.hparams = hparams
 
     def setup(self, stage: Optional[str] = None):
-        if stage == 'test':
-            return
-
         lines = read_csv(self.hparams.label_csv)
         label_map = {label: i for i, label in enumerate(np.unique(np.array(lines)[:, 4]))}
 

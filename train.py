@@ -11,7 +11,7 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
 from lightning import *
-from utils import compute_cosine_similarity, combine_pred_dicts, write_submission
+from utils import compute_cosine_similarity, write_submission
 
 
 def train(config: DictConfig):
@@ -54,7 +54,7 @@ def train(config: DictConfig):
 def tfidf(config, test_dm) -> Dict:
     model = TfidfVectorizer(stop_words='english', binary=True, max_features=25000)
 
-    test_dm.setup('test')
+    test_dm.setup()
     fnames, sentences = [], []
     for batch in test_dm.test_dataloader():
         fnames.extend(batch[0])
@@ -71,7 +71,7 @@ def tfidf(config, test_dm) -> Dict:
 def test(config: DictConfig):
     # config.update(
     #     {
-    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-05/21-25-16/checkpoints/epoch=9-val/f1=0.866.ckpt",
+    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-08/18-02-02/checkpoints/epoch=3-val/f1=0.856.ckpt",
     #         'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
     #         'pretrained': False
     #     }
@@ -84,10 +84,7 @@ def test(config: DictConfig):
     trainer = Trainer(gpus=config.gpus)
     trainer.test(lightning, datamodule=test_dm)
     dnn_result = lightning.test_results
-
-    tfide_result = tfidf(config, test_dm)
-    result = combine_pred_dicts([dnn_result, tfide_result])
-    write_submission(result, '/kaggle/working/')
+    write_submission(dnn_result, '/kaggle/working/')
 
 
 @hydra.main(config_path="configs/", config_name="config.yaml")

@@ -4,6 +4,7 @@ import cupy as cp
 import numpy as np
 import torch
 import torch.nn.functional as F
+from cuml.neighbors import NearestNeighbors
 from pytorch_lightning import LightningModule
 from pytorch_lightning.metrics import F1
 from torch.nn import CrossEntropyLoss
@@ -108,13 +109,14 @@ class ShopeeLightning(LightningModule):
 
         fnames = np.array(fnames)
         embeddings = cp.array(embeddings)
-        pred_dict = compute_cosine_similarity(embeddings,
-                                              fnames,
-                                              threshold=self.hparams.score_threshold,
-                                              top_k=self.hparams.top_k,
-                                              batch_compute=True)
+
+        knn = NearestNeighbors(n_neighbors=3 if self.hparams.testing else 50)
+        knn.fit(embeddings)
+        distances, indices = knn.kneighbors(embeddings)
+
         result = {}
-        for i, fname in enumerate(fnames):
-            pred_fnames = pred_dict[fname]
-            result[fname] = pred_fnames
+        for i in range(embeddings.shape[0]):
+            idx = np.where(distances[i,] < 0.5)[0]
+            ids = indices[i, idx]
+            result[fnames[i]] = fnames[ids.get()]
         self.test_results = result
