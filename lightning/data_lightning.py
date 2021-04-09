@@ -24,7 +24,7 @@ class ShopeeTrainValDataModule(LightningDataModule):
         lines = read_csv(self.hparams.label_csv)
         label_map = {label: i for i, label in enumerate(np.unique(np.array(lines)[:, 4]))}
 
-        kf = KFold(n_splits=5, shuffle=True, random_state=self.hparams.random_seed)
+        kf = KFold(n_splits=10, shuffle=True, random_state=self.hparams.random_seed)
         for i, (train_indices, val_indices) in enumerate(kf.split(range(len(lines)))):
             if i == self.hparams.fold:
                 train_lines, val_lines = lines[train_indices], lines[val_indices]
@@ -109,8 +109,7 @@ class ShopeeTestDataModule(LightningDataModule):
 
     def test_transforms(self):
         transform = albumentations.Compose([
-            albumentations.Resize(self.hparams.input_size, self.hparams.input_size),
-            albumentations.CenterCrop(height=self.hparams.center_crop, width=self.hparams.center_crop),
+            albumentations.Resize(self.hparams.center_crop, self.hparams.center_crop),
             albumentations.Normalize(),
             ToTensorV2(),
         ])

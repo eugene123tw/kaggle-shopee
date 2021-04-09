@@ -1,9 +1,11 @@
 from typing import Dict
 
 import cudf
+import cupy as cp
 import hydra
 import numpy as np
 import torch
+import torch.nn.functional as F
 from cuml.feature_extraction.text import TfidfVectorizer
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
@@ -11,7 +13,12 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from pytorch_lightning.loggers import WandbLogger
 
 from lightning import *
-from utils import compute_cosine_similarity, write_submission
+from utils import (
+    knn_similarity,
+    compute_cosine_similarity,
+    compute_f1_score
+)
+from utils import write_submission
 
 
 def train(config: DictConfig):
@@ -68,6 +75,44 @@ def tfidf(config, test_dm) -> Dict:
     return pred_dict
 
 
+def validate(config: DictConfig):
+    config.update(
+        {
+            'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-09/12-29-29/checkpoints/epoch=9-val/f1=0.877.ckpt",
+            'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
+            'pretrained': False
+        }
+    )
+
+    checkpoint = torch.load(config.weights)
+    lightning = ShopeeLightning(config)
+    lightning.load_state_dict(checkpoint['state_dict'])
+    train_dm = ShopeeTrainValDataModule(config)
+    train_dm.setup()
+    fnames, embeddings = [], []
+    gt = {}
+    lightning.eval()
+    lightning.cuda()
+    with torch.no_grad():
+        for batch in train_dm.val_dataloader():
+            b_fname, imgs, sentences, labels, b_gt = batch
+            embedding = F.normalize(lightning((imgs.cuda(), sentences))).detach().cpu().numpy()
+            for fname, gt_list, embed in zip(b_fname, b_gt, embedding):
+                gt[fname] = gt_list
+                fnames.append(fname)
+                embeddings.append(embed)
+
+    fnames = np.array(fnames)
+    embeddings = cp.array(embeddings)
+    pred_dict = knn_similarity(
+        embeddings,
+        fnames,
+        n_neighbors=50 if len(fnames) > 3 else len(fnames),
+        threshold=0.9)
+    f1_value = compute_f1_score(pred_dict, gt)
+    print(f1_value)
+
+
 def test(config: DictConfig):
     # config.update(
     #     {
@@ -89,6 +134,7 @@ def test(config: DictConfig):
 
 @hydra.main(config_path="configs/", config_name="config.yaml")
 def main(config: DictConfig):
+    # validate(config)
     if not config.testing:
         return train(config)
     else:

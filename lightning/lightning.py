@@ -4,7 +4,6 @@ import cupy as cp
 import numpy as np
 import torch
 import torch.nn.functional as F
-
 from pytorch_lightning import LightningModule
 from pytorch_lightning.metrics import F1
 from torch.nn import CrossEntropyLoss
@@ -12,7 +11,6 @@ from torch.nn import CrossEntropyLoss
 from models.meta_model import MetaNet
 from utils import (
     knn_similarity,
-    compute_cosine_similarity,
     compute_f1_score
 )
 from utils.loss import SphereProduct
@@ -84,7 +82,7 @@ class ShopeeLightning(LightningModule):
         best_f1 = 0
         best_thres = 0
 
-        for thres in np.arange(0.1, 3.0, 0.1):
+        for thres in np.arange(0.1, 1.5, 0.1):
             # pred_dict = compute_cosine_similarity(embeddings, fnames, batch_compute=True, threshold=thres,
             #                                       top_k=self.hparams.top_k)
             pred_dict = knn_similarity(
