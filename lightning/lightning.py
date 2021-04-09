@@ -118,5 +118,5 @@ class ShopeeLightning(LightningModule):
             embeddings,
             fnames,
             n_neighbors=50 if len(fnames) > 3 else len(fnames),
-            threshold=0.9)
+            threshold=self.hparams.score_threshold)
         self.test_results = result

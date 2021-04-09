@@ -4,5 +4,5 @@ fold: 0
 random_seed: 42
 
 # post-processing
-score_threshold: 0.5
+score_threshold: 1.0
 top_k: 50

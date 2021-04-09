@@ -23,8 +23,8 @@ class ShopeeTrainValDataModule(LightningDataModule):
     def setup(self, stage: Optional[str] = None):
         lines = read_csv(self.hparams.label_csv)
         label_map = {label: i for i, label in enumerate(np.unique(np.array(lines)[:, 4]))}
-
-        kf = KFold(n_splits=10, shuffle=True, random_state=self.hparams.random_seed)
+        lines = lines[np.argsort(lines[:, -1])]
+        kf = KFold(n_splits=5)
         for i, (train_indices, val_indices) in enumerate(kf.split(range(len(lines)))):
             if i == self.hparams.fold:
                 train_lines, val_lines = lines[train_indices], lines[val_indices]
