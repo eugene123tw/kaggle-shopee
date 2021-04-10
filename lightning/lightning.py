@@ -10,8 +10,7 @@ from torch.nn import CrossEntropyLoss
 
 from models.meta_model import MetaNet
 from utils import (
-    knn_similarity,
-    compute_f1_score
+    compute_f1_score, compute_cosine_similarity
 )
 from utils.loss import SphereProduct
 
@@ -82,14 +81,14 @@ class ShopeeLightning(LightningModule):
         best_f1 = 0
         best_thres = 0
 
-        for thres in np.arange(0.1, 1.5, 0.1):
-            # pred_dict = compute_cosine_similarity(embeddings, fnames, batch_compute=True, threshold=thres,
-            #                                       top_k=self.hparams.top_k)
-            pred_dict = knn_similarity(
-                embeddings,
-                fnames,
-                n_neighbors=50 if len(fnames) > 3 else len(fnames),
-                threshold=thres)
+        for thres in np.arange(0.5, 0.95, 0.05):
+            pred_dict = compute_cosine_similarity(embeddings, fnames, batch_compute=True, threshold=thres,
+                                                  top_k=self.hparams.top_k)
+            # pred_dict = knn_similarity(
+            #     embeddings,
+            #     fnames,
+            #     n_neighbors=50 if len(fnames) > 3 else len(fnames),
+            #     threshold=thres)
             f1_value = compute_f1_score(pred_dict, gt)
             if f1_value > best_f1:
                 best_thres = thres
@@ -114,9 +113,14 @@ class ShopeeLightning(LightningModule):
         fnames = np.array(fnames)
         embeddings = cp.array(embeddings)
 
-        result = knn_similarity(
-            embeddings,
-            fnames,
-            n_neighbors=50 if len(fnames) > 3 else len(fnames),
-            threshold=self.hparams.score_threshold)
-        self.test_results = result
+        # result = knn_similarity(
+        #     embeddings,
+        #     fnames,
+        #     n_neighbors=50 if len(fnames) > 3 else len(fnames),
+        #     threshold=self.hparams.score_threshold)
+
+        pred_dict = compute_cosine_similarity(embeddings, fnames, batch_compute=True,
+                                              threshold=self.hparams.score_threshold,
+                                              top_k=self.hparams.top_k)
+
+        self.test_results = pred_dict

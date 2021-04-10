@@ -49,6 +49,7 @@ def train(config: DictConfig):
     trainer = Trainer(
         gpus=config.gpus,
         max_epochs=config.epochs,
+        num_sanity_val_steps=-1,
         logger=logger,
         callbacks=[
             checkpoint_callback,
