@@ -110,12 +110,24 @@ def compute_f1_score(pred_dict: Dict, gt: Dict) -> float:
     return f1_value
 
 
-def combine_pred_dicts(predictions: List[Dict]) -> Dict:
+def combine_pred_dicts(predictions: List[Dict], method='inter') -> Dict:
+    """ Combine prediction dictionaries
+
+    :param predictions:
+    :param method: 'inter'/'union'
+    :return:
+    """
     combined_dict = {}
     for pred_dict in predictions:
         for fname, pred in pred_dict.items():
             if fname in combined_dict:
-                combined_dict[fname] = np.intersect1d(combined_dict[fname], pred)
+                if method == 'inter':
+                    combined_dict[fname] = np.intersect1d(combined_dict[fname], pred)
+                elif method == 'union':
+                    combined_dict[fname] = np.unique(np.concatenate((combined_dict[fname], pred)))
+                else:
+                    raise NotImplemented("UNKNOWN COMBINE METHOD")
+
             else:
                 combined_dict[fname] = pred
     return combined_dict

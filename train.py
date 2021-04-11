@@ -16,7 +16,8 @@ from lightning import *
 from utils import (
     knn_similarity,
     compute_cosine_similarity,
-    compute_f1_score
+    compute_f1_score,
+    combine_pred_dicts
 )
 from utils import write_submission
 
@@ -68,11 +69,10 @@ def tfidf(config, test_dm) -> Dict:
         fnames.extend(batch[0])
         sentences.extend(batch[2])
     text_embeddings = model.fit_transform(cudf.Series(sentences)).toarray()
-    pred_dict = compute_cosine_similarity(text_embeddings,
-                                          np.array(fnames),
+    pred_dict = compute_cosine_similarity(embeddings=text_embeddings,
+                                          fnames=np.array(fnames),
                                           threshold=config.score_threshold,
-                                          top_k=config.top_k,
-                                          batch_compute=True)
+                                          top_k=config.top_k)
     return pred_dict
 
 
@@ -117,7 +117,7 @@ def validate(config: DictConfig):
 def test(config: DictConfig):
     # config.update(
     #     {
-    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-08/18-02-02/checkpoints/epoch=3-val/f1=0.856.ckpt",
+    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-11/19-54-22/checkpoints/epoch=9-val/f1=0.762.ckpt",
     #         'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
     #         'pretrained': False
     #     }
@@ -129,8 +129,11 @@ def test(config: DictConfig):
     test_dm = ShopeeTestDataModule(config)
     trainer = Trainer(gpus=config.gpus)
     trainer.test(lightning, datamodule=test_dm)
-    dnn_result = lightning.test_results
-    write_submission(dnn_result, '/kaggle/working/')
+    result = lightning.test_results
+    if config.tfidf:
+        tfidf_result = tfidf(config, test_dm)
+        result = combine_pred_dicts([result, tfidf_result], method='union')
+    write_submission(result, '/kaggle/working/')
 
 
 @hydra.main(config_path="configs/", config_name="config.yaml")

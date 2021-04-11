@@ -1,8 +1,8 @@
 gpus: 1
 epochs: 50
-fold: 2
+fold: 0
 random_seed: 42
 
 # post-processing
-score_threshold: 1.0
+score_threshold: 0.75
 top_k: 50
