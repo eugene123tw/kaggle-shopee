@@ -1,6 +1,6 @@
 input_size: 512
 center_crop: 512
-backbone: efficientnet_b0
+backbone: efficientnet_b1
 text_backbone: cahya/distilbert-base-indonesian
 pretrained: true
 image_embedding_size: 256

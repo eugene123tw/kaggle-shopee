@@ -50,7 +50,6 @@ class ShopeeTrainValDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             collate_fn=collate,
-            pin_memory=True,
         )
 
     def train_dataloader(self) -> Any:
@@ -59,7 +58,6 @@ class ShopeeTrainValDataModule(LightningDataModule):
             shuffle=True,
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
-            pin_memory=True,
             collate_fn=collate
         )
 

@@ -1,6 +1,6 @@
 gpus: 1
 epochs: 50
-fold: 0
+fold: 2
 random_seed: 42
 
 # post-processing

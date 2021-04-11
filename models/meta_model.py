@@ -77,7 +77,6 @@ class SentenceBackbone(nn.Module):
         self.hparams = hparams
         self.tokenizer = DistilBertTokenizer.from_pretrained(hparams.text_backbone)
         self.text_backbone = DistilBertModel.from_pretrained(hparams.text_backbone)
-        self.norm = nn.BatchNorm1d(hparams.text_embedding_size)
 
     def forward(self, sentence):
         tokens_output = self.tokenizer(
@@ -94,7 +93,7 @@ class SentenceBackbone(nn.Module):
 
         output = self.text_backbone(tokens.cuda(), attention_mask.cuda())
         word_embeddings = output.last_hidden_state
-        word_embeddings = self.norm(word_embeddings[:, 0, :])
+        word_embeddings = word_embeddings[:, 0, :]
 
         # obtaining CLS token state which is the first token.
         return word_embeddings
@@ -107,6 +106,7 @@ class MetaNet(nn.Module):
         self.image_backbone = ImageBackbone(hparams)
         self.sentence_backbone = SentenceBackbone(hparams)
         self.embedding_size = hparams.image_embedding_size + hparams.text_embedding_size
+        self.norm = nn.BatchNorm1d(self.embedding_size)
 
     def forward(self, input):
         img, sentence = input
@@ -114,4 +114,5 @@ class MetaNet(nn.Module):
         sentence_embed = self.sentence_backbone(sentence)
 
         x = torch.cat((img_embed, sentence_embed), -1)
+        x = self.norm(x)
         return x

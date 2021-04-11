@@ -1,4 +1,4 @@
-from typing import List, Any, Dict
+from typing import List, Any
 
 import cupy as cp
 import numpy as np
@@ -10,7 +10,7 @@ from torch.nn import CrossEntropyLoss
 
 from models.meta_model import MetaNet
 from utils import (
-    compute_f1_score, compute_cosine_similarity
+    compute_f1_score, compute_cosine_similarity, compute_cosine_similarity_np
 )
 from utils.loss import SphereProduct
 
@@ -76,14 +76,16 @@ class ShopeeLightning(LightningModule):
                 fnames.append(fname)
 
         fnames = np.array(fnames)
-        embeddings = cp.array(embeddings)
+        embeddings = np.array(embeddings)
 
         best_f1 = 0
         best_thres = 0
 
         for thres in np.arange(0.5, 0.95, 0.05):
-            pred_dict = compute_cosine_similarity(embeddings, fnames, batch_compute=True, threshold=thres,
-                                                  top_k=self.hparams.top_k)
+            pred_dict = compute_cosine_similarity_np(embeddings=embeddings,
+                                                     fnames=fnames,
+                                                     threshold=thres,
+                                                     top_k=self.hparams.top_k)
             # pred_dict = knn_similarity(
             #     embeddings,
             #     fnames,
@@ -103,7 +105,7 @@ class ShopeeLightning(LightningModule):
         outputs = F.normalize(self.model((imgs, sentences)))
         return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
 
-    def test_epoch_end(self, outputs: List[Any]) -> Dict:
+    def test_epoch_end(self, outputs: List[Any]):
         fnames, embeddings = [], []
         for output in outputs:
             for fname, embedding in zip(output['fnames'], output['embeddings']):
@@ -119,7 +121,8 @@ class ShopeeLightning(LightningModule):
         #     n_neighbors=50 if len(fnames) > 3 else len(fnames),
         #     threshold=self.hparams.score_threshold)
 
-        pred_dict = compute_cosine_similarity(embeddings, fnames, batch_compute=True,
+        pred_dict = compute_cosine_similarity(embeddings=embeddings,
+                                              fnames=fnames,
                                               threshold=self.hparams.score_threshold,
                                               top_k=self.hparams.top_k)
 
