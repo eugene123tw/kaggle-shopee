@@ -1,5 +1,6 @@
 import csv
 import os
+import random
 from collections import OrderedDict, Counter
 from typing import Dict, List
 
@@ -149,3 +150,9 @@ def collate(batch):
     labels = torch.tensor([item[3] for item in batch])
     gt = [item[4] for item in batch]
     return fnames, imgs, sentences, labels, gt
+
+
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2 ** 32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)

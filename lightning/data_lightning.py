@@ -11,7 +11,8 @@ from utils import (
     read_csv,
     ShopeeDataset,
     ShopeeTestDataset,
-    collate
+    collate,
+    seed_worker
 )
 
 
@@ -50,6 +51,7 @@ class ShopeeTrainValDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             collate_fn=collate,
+            worker_init_fn=seed_worker
         )
 
     def train_dataloader(self) -> Any:
@@ -58,7 +60,8 @@ class ShopeeTrainValDataModule(LightningDataModule):
             shuffle=True,
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
-            collate_fn=collate
+            collate_fn=collate,
+            worker_init_fn=seed_worker
         )
 
     def train_transforms(self):

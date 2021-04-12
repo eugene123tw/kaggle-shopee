@@ -10,3 +10,4 @@ sentence_max_length: 512
 p_trainable: true
 neck: option-D
 tfidf: false
+d_metric: ArcMarginProduct

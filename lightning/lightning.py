@@ -12,7 +12,7 @@ from models.meta_model import MetaNet
 from utils import (
     compute_f1_score, compute_cosine_similarity, compute_cosine_similarity_np
 )
-from utils.loss import SphereProduct
+from utils.loss import SphereProduct, ArcMarginProduct
 
 
 class ShopeeLightning(LightningModule):
@@ -20,10 +20,16 @@ class ShopeeLightning(LightningModule):
         super(ShopeeLightning, self).__init__()
         self.hparams = hparams
         self.model = MetaNet(hparams)
-        # ArcFaceLoss(s=30, m=0.4)
-        self.metric_crit = SphereProduct(
-            in_features=hparams.output_feature_size,
-            out_features=hparams.num_classes)
+        if hparams.d_metric == 'ArcMarginProduct':
+            self.metric_crit = ArcMarginProduct(
+                in_features=hparams.output_feature_size,
+                out_features=hparams.num_classes)
+        elif hparams.loss == 'SphereProduct':
+            self.metric_crit = SphereProduct(
+                in_features=hparams.output_feature_size,
+                out_features=hparams.num_classes)
+        else:
+            raise NotImplemented("UNKNOWN D-METRIC")
         self.ce = CrossEntropyLoss()
         self.f1 = F1(num_classes=hparams.num_classes)
 
