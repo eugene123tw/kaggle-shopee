@@ -51,7 +51,6 @@ class ShopeeTestDataset(Dataset):
     def __getitem__(self, item):
         line = self.lines[item]
         fname = line[0]
-        phash = line[2]
         sentence = line[3]
 
         img_path = os.path.join(self.hparams.test_dir, line[1])
@@ -61,4 +60,4 @@ class ShopeeTestDataset(Dataset):
         if self.transform is not None:
             res = self.transform(image=img)
             img = res['image']
-        return fname, img, sentence, phash
+        return fname, img, sentence

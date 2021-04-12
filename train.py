@@ -60,21 +60,6 @@ def train(config: DictConfig):
     trainer.fit(lightning, data_module)
 
 
-def phash_matching(test_dm) -> Dict:
-    test_dm.setup()
-    fnames, hashes = [], []
-    for batch in test_dm.test_dataloader():
-        fnames.extend(batch[0])
-        hashes.extend(batch[-1])
-
-    fnames = np.array(fnames)
-    hashes = np.array(hashes)
-    result = {}
-    for fname, phash in zip(fnames, hashes):
-        result[fname] = fnames[hashes == phash]
-    return result
-
-
 def tfidf(config, test_dm) -> Dict:
     model = TfidfVectorizer(stop_words='english', binary=True, max_features=25000)
 
@@ -132,7 +117,7 @@ def validate(config: DictConfig):
 def test(config: DictConfig):
     # config.update(
     #     {
-    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-12/08-02-56/checkpoints/epoch=9-val/2021-04-12_08-02-56_0.784.ckpt",
+    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-12/21-16-41/checkpoints/epoch=6-val/2021-04-12_21-16-41_0.849.ckpt",
     #         'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
     #         'pretrained': False
     #     }
@@ -147,9 +132,6 @@ def test(config: DictConfig):
 
     results = []
     results.append(lightning.test_results)
-
-    if config.phash:
-        results.append(phash_matching(test_dm))
 
     if config.tfidf:
         results.append(tfidf(config, test_dm))

@@ -12,7 +12,7 @@ from utils import (
     ShopeeDataset,
     ShopeeTestDataset,
     collate,
-    worker_init_fn
+    seed_worker
 )
 
 
@@ -51,7 +51,7 @@ class ShopeeTrainValDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             collate_fn=collate,
-            worker_init_fn=worker_init_fn
+            worker_init_fn=seed_worker
         )
 
     def train_dataloader(self) -> Any:
@@ -61,7 +61,7 @@ class ShopeeTrainValDataModule(LightningDataModule):
             batch_size=self.hparams.batch_size,
             num_workers=self.hparams.num_workers,
             collate_fn=collate,
-            worker_init_fn=worker_init_fn
+            worker_init_fn=seed_worker
         )
 
     def train_transforms(self):
@@ -99,6 +99,10 @@ class ShopeeTestDataModule(LightningDataModule):
 
     def test_dataloader(self) -> Union[DataLoader, List[DataLoader]]:
         test_lines = read_csv(self.hparams.test_csv)
+
+        if self.hparams.stress_test:
+            test_lines = np.repeat(test_lines, 70000 // 3, 0)
+
         test_dataset = ShopeeTestDataset(
             self.hparams,
             lines=test_lines,

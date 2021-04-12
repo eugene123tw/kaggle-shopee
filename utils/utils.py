@@ -155,5 +155,7 @@ def collate(batch):
     return fnames, imgs, sentences, labels, gt
 
 
-def worker_init_fn(worker_id):
-    np.random.seed(np.random.get_state()[1][0] + worker_id)
+def seed_worker(worker_id):
+    worker_seed = torch.initial_seed() % 2 ** 32
+    np.random.seed(worker_seed)
+    random.seed(worker_seed)

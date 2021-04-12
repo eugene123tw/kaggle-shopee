@@ -21,6 +21,7 @@ defaults:
 
 testing: true
 weights: "/home/yuchunli/git/kaggle-shopee/f1=0.744.ckpt"
+stress_test: true
 
 # path to folder with data
 data_dir: "/home/yuchunli/_DATASET/shopee-product-matching"

@@ -107,7 +107,7 @@ class ShopeeLightning(LightningModule):
         self.log("val/f1", best_f1, on_step=False, on_epoch=True, prog_bar=True)
 
     def test_step(self, batch, batch_idx):
-        fnames, imgs, sentences, phash = batch
+        fnames, imgs, sentences = batch
         outputs = F.normalize(self.model((imgs, sentences)))
         return {'fnames': fnames, 'embeddings': outputs.detach().cpu().numpy()}
 
