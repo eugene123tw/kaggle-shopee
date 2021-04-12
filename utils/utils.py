@@ -118,6 +118,9 @@ def combine_pred_dicts(predictions: List[Dict], method='inter') -> Dict:
     :param method: 'inter'/'union'
     :return:
     """
+    if len(predictions) == 1:
+        return predictions[0]
+
     combined_dict = {}
     for pred_dict in predictions:
         for fname, pred in pred_dict.items():
@@ -152,7 +155,5 @@ def collate(batch):
     return fnames, imgs, sentences, labels, gt
 
 
-def seed_worker(worker_id):
-    worker_seed = torch.initial_seed() % 2 ** 32
-    np.random.seed(worker_seed)
-    random.seed(worker_seed)
+def worker_init_fn(worker_id):
+    np.random.seed(np.random.get_state()[1][0] + worker_id)

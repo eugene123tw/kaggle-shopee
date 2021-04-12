@@ -1,8 +1,8 @@
 import os
 from typing import Callable, Optional
 
-import cv2
 import cupy as cp
+import cv2
 from torch.utils.data import Dataset
 
 from .utils import build_gt
@@ -51,6 +51,7 @@ class ShopeeTestDataset(Dataset):
     def __getitem__(self, item):
         line = self.lines[item]
         fname = line[0]
+        phash = line[2]
         sentence = line[3]
 
         img_path = os.path.join(self.hparams.test_dir, line[1])
@@ -60,4 +61,4 @@ class ShopeeTestDataset(Dataset):
         if self.transform is not None:
             res = self.transform(image=img)
             img = res['image']
-        return fname, img, sentence
+        return fname, img, sentence, phash

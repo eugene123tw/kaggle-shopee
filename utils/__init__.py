@@ -11,5 +11,5 @@ from .utils import (
     combine_pred_dicts,
     knn_similarity,
     compute_cosine_similarity_np,
-    seed_worker
+    worker_init_fn
 )

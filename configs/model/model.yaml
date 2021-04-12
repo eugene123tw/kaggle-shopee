@@ -9,5 +9,6 @@ output_feature_size: 1024
 sentence_max_length: 512
 p_trainable: true
 neck: option-D
-tfidf: false
+tfidf: true
+phash: true
 d_metric: ArcMarginProduct
