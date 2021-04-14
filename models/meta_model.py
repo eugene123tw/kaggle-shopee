@@ -103,16 +103,37 @@ class MetaNet(nn.Module):
     def __init__(self, hparams):
         super(MetaNet, self).__init__()
         self.hparams = hparams
-        self.image_backbone = ImageBackbone(hparams)
-        self.sentence_backbone = SentenceBackbone(hparams)
-        self.embedding_size = hparams.image_embedding_size + hparams.text_embedding_size
+
+        if self.hparams.model_selection == 'all':
+            self.image_backbone = ImageBackbone(hparams)
+            self.sentence_backbone = SentenceBackbone(hparams)
+            self.embedding_size = hparams.image_embedding_size + hparams.text_embedding_size
+        elif self.hparams.model_selection == 'image':
+            self.image_backbone = ImageBackbone(hparams)
+            self.embedding_size = hparams.image_embedding_size
+        elif self.hparams.model_selection == 'text':
+            self.sentence_backbone = SentenceBackbone(hparams)
+            self.embedding_size = hparams.text_embedding_size
+        else:
+            raise NotImplemented
+
         self.norm = nn.BatchNorm1d(self.embedding_size)
 
     def forward(self, input):
         img, sentence = input
-        img_embed = self.image_backbone(img)
-        sentence_embed = self.sentence_backbone(sentence)
 
-        x = torch.cat((img_embed, sentence_embed), -1)
+        if self.hparams.model_selection == 'all':
+            img_embed = self.image_backbone(img)
+            sentence_embed = self.sentence_backbone(sentence)
+            x = torch.cat((img_embed, sentence_embed), -1)
+        elif self.hparams.model_selection == 'image':
+            img_embed = self.image_backbone(img)
+            x = img_embed
+        elif self.hparams.model_selection == 'text':
+            sentence_embed = self.sentence_backbone(sentence)
+            x = sentence_embed
+        else:
+            raise NotImplemented
+
         x = self.norm(x)
         return x

@@ -115,14 +115,6 @@ def validate(config: DictConfig):
 
 
 def test(config: DictConfig):
-    # config.update(
-    #     {
-    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-12/21-16-41/checkpoints/epoch=6-val/2021-04-12_21-16-41_0.849.ckpt",
-    #         'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
-    #         'pretrained': False
-    #     }
-    # )
-
     checkpoint = torch.load(config.weights)
     lightning = ShopeeLightning(config)
     lightning.load_state_dict(checkpoint['state_dict'])
@@ -142,6 +134,15 @@ def test(config: DictConfig):
 
 @hydra.main(config_path="configs/", config_name="config.yaml")
 def main(config: DictConfig):
+    # config.update(
+    #     {
+    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-12/08-02-56/checkpoints/epoch=9-val/2021-04-12_08-02-56_0.784.ckpt",
+    #         'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
+    #         'pretrained': False,
+    #         'testing': True
+    #     }
+    # )
+
     # validate(config)
     if not config.testing:
         return train(config)

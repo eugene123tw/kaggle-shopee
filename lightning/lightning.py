@@ -22,11 +22,11 @@ class ShopeeLightning(LightningModule):
         self.model = MetaNet(hparams)
         if hparams.d_metric == 'ArcMarginProduct':
             self.metric_crit = ArcMarginProduct(
-                in_features=hparams.output_feature_size,
+                in_features=self.model.embedding_size,
                 out_features=hparams.num_classes)
         elif hparams.loss == 'SphereProduct':
             self.metric_crit = SphereProduct(
-                in_features=hparams.output_feature_size,
+                in_features=self.model.embedding_size,
                 out_features=hparams.num_classes)
         else:
             raise NotImplemented("UNKNOWN D-METRIC")

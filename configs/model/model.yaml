@@ -1,13 +1,13 @@
-input_size: 256
-center_crop: 256
-backbone: efficientnet_v2s
+input_size: 512
+center_crop: 512
+backbone: efficientnet_b1
 text_backbone: cahya/distilbert-base-indonesian
 pretrained: true
 image_embedding_size: 256
 text_embedding_size: 768
-output_feature_size: 1024
 sentence_max_length: 512
 p_trainable: true
 neck: option-D
 tfidf: true
 d_metric: ArcMarginProduct
+model_selection: "image"

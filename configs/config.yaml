@@ -21,7 +21,7 @@ defaults:
 
 testing: false
 weights: ""
-stress_test: true
+stress_test: false
 
 # path to folder with data
 data_dir: "/home/yuchunli/_DATASET/shopee-product-matching"
