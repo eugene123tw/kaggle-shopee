@@ -60,7 +60,7 @@ def compute_cosine_similarity(fnames: np.array, embeddings: cp.ndarray, threshol
 
         sim_matrix = cp.matmul(embeddings, embeddings[a:b].T).T
 
-        if prob_array:
+        if get_prob:
             prob_array[a:b] = sim_matrix.get()
 
         for k in range(b - a):
