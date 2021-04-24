@@ -1,5 +1,5 @@
 {
-    "python.pythonPath": "/home/yuchunli/git/envs/kaggle36/bin/python3.6",
+    "python.pythonPath": "/home/yuchunli/git/miniconda3/envs/condakaggle38/bin/python",
     "python.linting.pylintEnabled": false,
     "python.linting.mypyEnabled": true,
     "python.linting.enabled": true,

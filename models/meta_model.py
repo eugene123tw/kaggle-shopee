@@ -1,8 +1,9 @@
-import timm
 import torch
 import torch.nn.functional as F
 from torch import nn
 from transformers import DistilBertTokenizer, DistilBertModel
+
+import timm
 
 
 def gem(x, p=3, eps=1e-6):
@@ -35,8 +36,10 @@ class ImageBackbone(nn.Module):
 
         if 'resnet' in hparams.backbone:
             self.out_features = self.backbone.fc.in_features
-        elif 'efficientnet':
+        elif 'efficientnet' in hparams.backbone:
             self.out_features = self.backbone.classifier.in_features
+        elif 'swin' in hparams.backbone:
+            self.out_features = self.backbone.head.in_features
         else:
             raise NotImplemented
 
@@ -65,8 +68,9 @@ class ImageBackbone(nn.Module):
 
     def forward(self, x):
         x = self.backbone.forward_features(x)
-        x = self.global_pool(x)
-        x = x[:, :, 0, 0]
+        if 'swin' not in self.hparams.backbone:
+            x = self.global_pool(x)
+            x = x[:, :, 0, 0]
         x = self.neck(x)
         return x
 

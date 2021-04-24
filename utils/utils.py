@@ -2,7 +2,7 @@ import csv
 import os
 import random
 from collections import OrderedDict, Counter
-from typing import Dict, List
+from typing import Dict, List, Tuple, Union
 
 import cupy as cp
 import numpy as np
@@ -41,10 +41,14 @@ def get_class_weights(lines: np.ndarray, label_map: Dict[str, int], n_classes: i
     return class_weights
 
 
-def compute_cosine_similarity(fnames: np.array, embeddings: cp.ndarray, threshold: float, top_k: int) -> Dict:
+def compute_cosine_similarity(fnames: np.array, embeddings: cp.ndarray, threshold: float, top_k: int,
+                              get_prob=False) -> Tuple[Dict, Union[np.ndarray, List]]:
     if not isinstance(embeddings, cp.ndarray):
         raise NotImplemented("WRONG INPUT FORMAT")
-    pred_fnames = {}
+
+    prob_array = np.zeros((len(fnames), len(fnames))) if get_prob else []
+
+    pred_fnames = OrderedDict()
     chunk = 1024 * 2
     counter = len(embeddings) // chunk
     if len(embeddings) % chunk != 0:
@@ -55,12 +59,16 @@ def compute_cosine_similarity(fnames: np.array, embeddings: cp.ndarray, threshol
         b = min(b, len(embeddings))
 
         sim_matrix = cp.matmul(embeddings, embeddings[a:b].T).T
+
+        if prob_array:
+            prob_array[a:b] = sim_matrix.get()
+
         for k in range(b - a):
             match_indices = cp.where(sim_matrix[k,] > threshold)[0]
             if len(match_indices) > top_k:
                 match_indices = cp.argsort(sim_matrix[k,])[-top_k:]
             pred_fnames[fnames[a + k]] = fnames[match_indices.get()]
-    return pred_fnames
+    return pred_fnames, prob_array
 
 
 def compute_cosine_similarity_np(fnames: np.array, embeddings: np.ndarray, threshold: float, top_k: int) -> Dict:

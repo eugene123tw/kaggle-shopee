@@ -10,9 +10,9 @@
             "request": "launch",
             "program": "${workspaceFolder}/train.py",
             "console": "integratedTerminal",
-            "python": "/home/yuchunli/git/envs/kaggle36/bin/python3.6",
+            "python": "/home/yuchunli/git/miniconda3/envs/condakaggle38/bin/python",
             "env": {
-                "PYTHONPATH": "${workspaceFolder}"
+                "PYTHONPATH": "/home/yuchunli/git/pytorch-image-models"
             }
         },
     ]

@@ -37,7 +37,19 @@ class ShopeeLightning(LightningModule):
         optimizer = torch.optim.Adam(
             [{'params': self.model.parameters()}, {'params': self.metric_crit.parameters()}],
             lr=self.hparams.lr)
-        return optimizer
+
+        if self.hparams.scheduler == "multistep_scheduler":
+            return {
+                'optimizer': optimizer,
+                'lr_scheduler': torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[7, 20]),
+            }
+
+        return {
+            'optimizer': optimizer,
+            'lr_scheduler': torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', patience=3),
+            'monitor': 'val/f1',
+            'interval': 'epoch',
+        }
 
     def forward(self, x):
         return self.model(x)
@@ -86,7 +98,6 @@ class ShopeeLightning(LightningModule):
 
         best_f1 = 0
         best_thres = 0
-
         for thres in np.arange(0.5, 0.95, 0.05):
             pred_dict = compute_cosine_similarity_np(embeddings=embeddings,
                                                      fnames=fnames,
@@ -127,9 +138,11 @@ class ShopeeLightning(LightningModule):
         #     n_neighbors=50 if len(fnames) > 3 else len(fnames),
         #     threshold=self.hparams.score_threshold)
 
-        pred_dict = compute_cosine_similarity(embeddings=embeddings,
-                                              fnames=fnames,
-                                              threshold=self.hparams.score_threshold,
-                                              top_k=self.hparams.top_k)
+        pred_dict, pred_prob = compute_cosine_similarity(embeddings=embeddings,
+                                                         fnames=fnames,
+                                                         threshold=self.hparams.score_threshold,
+                                                         top_k=self.hparams.top_k,
+                                                         get_prob=self.hparams.prob_ensemble)
 
         self.test_results = pred_dict
+        self.test_prob = pred_prob

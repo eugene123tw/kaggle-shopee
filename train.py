@@ -1,4 +1,5 @@
-from typing import Dict
+import glob
+from typing import Dict, List, Tuple
 
 import cudf
 import cupy as cp
@@ -7,14 +8,14 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from cuml.feature_extraction.text import TfidfVectorizer
+from hydra.experimental import compose, initialize
 from omegaconf import DictConfig
 from pytorch_lightning import Trainer
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
 from pytorch_lightning.loggers import WandbLogger
 
 from lightning import *
 from utils import (
-    knn_similarity,
     compute_cosine_similarity,
     compute_f1_score,
     combine_pred_dicts
@@ -42,6 +43,8 @@ def train(config: DictConfig):
         min_delta=config.early_stopping.min_delta,
     )
 
+    lr_monitor = LearningRateMonitor(logging_interval='epoch')
+
     logger = WandbLogger(
         project=config.wandb.project,
         name=config.wandb.name,
@@ -50,44 +53,41 @@ def train(config: DictConfig):
     trainer = Trainer(
         gpus=config.gpus,
         max_epochs=config.epochs,
-        num_sanity_val_steps=-1,
         logger=logger,
         callbacks=[
             checkpoint_callback,
-            stopping_callback
+            stopping_callback,
+            lr_monitor
         ],
     )
     trainer.fit(lightning, data_module)
 
 
-def tfidf(config, test_dm) -> Dict:
+def tfidf(config) -> Tuple[Dict, np.ndarray]:
     model = TfidfVectorizer(stop_words='english', binary=True, max_features=25000)
-
+    test_dm = ShopeeTestDataModule(config)
     test_dm.setup()
     fnames, sentences = [], []
     for batch in test_dm.test_dataloader():
         fnames.extend(batch[0])
         sentences.extend(batch[2])
     text_embeddings = model.fit_transform(cudf.Series(sentences)).toarray()
-    pred_dict = compute_cosine_similarity(embeddings=text_embeddings,
-                                          fnames=np.array(fnames),
-                                          threshold=config.score_threshold,
-                                          top_k=config.top_k)
-    return pred_dict
+    pred_dict, pred_array = compute_cosine_similarity(embeddings=text_embeddings,
+                                                      fnames=np.array(fnames),
+                                                      threshold=config.score_threshold,
+                                                      top_k=config.top_k,
+                                                      get_prob=config.prob_ensemble)
+    return pred_dict, pred_array
 
 
-def validate(config: DictConfig):
+def bert(config: DictConfig):
     config.update(
         {
-            'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-09/12-29-29/checkpoints/epoch=9-val/f1=0.877.ckpt",
             'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
             'pretrained': False
         }
     )
-
-    checkpoint = torch.load(config.weights)
     lightning = ShopeeLightning(config)
-    lightning.load_state_dict(checkpoint['state_dict'])
     train_dm = ShopeeTrainValDataModule(config)
     train_dm.setup()
     fnames, embeddings = [], []
@@ -105,13 +105,62 @@ def validate(config: DictConfig):
 
     fnames = np.array(fnames)
     embeddings = cp.array(embeddings)
-    pred_dict = knn_similarity(
-        embeddings,
-        fnames,
-        n_neighbors=50 if len(fnames) > 3 else len(fnames),
-        threshold=0.9)
-    f1_value = compute_f1_score(pred_dict, gt)
-    print(f1_value)
+    best_f1 = 0
+    best_thres = 0
+    for thres in np.arange(0, 0.95, 0.05):
+        pred_dict, pred_array = compute_cosine_similarity(embeddings=embeddings,
+                                                          fnames=fnames,
+                                                          threshold=thres,
+                                                          top_k=config.top_k,
+                                                          get_prob=config.prob_ensemble)
+        f1_value = compute_f1_score(pred_dict, gt)
+        if f1_value > best_f1:
+            best_thres = thres
+            best_f1 = f1_value
+    print(best_thres)
+
+
+def validate(config: DictConfig):
+    # config.update(
+    #     {
+    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-09/12-29-29/checkpoints/epoch=9-val/f1=0.877.ckpt",
+    #         'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
+    #         'pretrained': False
+    #     }
+    # )
+
+    # checkpoint = torch.load(config.weights)
+    lightning = ShopeeLightning(config)
+    # lightning.load_state_dict(checkpoint['state_dict'])
+    train_dm = ShopeeTrainValDataModule(config)
+    train_dm.setup()
+    fnames, embeddings = [], []
+    gt = {}
+    lightning.eval()
+    lightning.cuda()
+    with torch.no_grad():
+        for batch in train_dm.val_dataloader():
+            b_fname, imgs, sentences, labels, b_gt = batch
+            embedding = F.normalize(lightning((imgs.cuda(), sentences))).detach().cpu().numpy()
+            for fname, gt_list, embed in zip(b_fname, b_gt, embedding):
+                gt[fname] = gt_list
+                fnames.append(fname)
+                embeddings.append(embed)
+
+    fnames = np.array(fnames)
+    embeddings = cp.array(embeddings)
+    best_thres = 0
+    best_f1 = 0
+    for thres in np.arange(0, 0.95, 0.05):
+        pred_dict, pred_prob = compute_cosine_similarity(embeddings=embeddings,
+                                                         fnames=fnames,
+                                                         threshold=thres,
+                                                         top_k=config.top_k)
+        f1_value = compute_f1_score(pred_dict, gt)
+        if f1_value > best_f1:
+            best_thres = thres
+            best_f1 = f1_value
+    print(f"best_f1: {best_f1} best_thres: {best_thres}")
 
 
 def test(config: DictConfig):
@@ -121,14 +170,41 @@ def test(config: DictConfig):
     test_dm = ShopeeTestDataModule(config)
     trainer = Trainer(gpus=config.gpus)
     trainer.test(lightning, datamodule=test_dm)
+    return lightning.test_results, lightning.test_prob
 
+
+def ensemble(checkpoint_paths: List[str]):
     results = []
-    results.append(lightning.test_results)
+    results_prob = []
+    for ckpt_folder in checkpoint_paths:
+        with initialize(config_path=ckpt_folder, job_name="ensemble_app"):
+            config = compose(config_name="config.yaml")
+            ckpt_path = glob.glob(ckpt_folder + "/*.ckpt")[0]
+            config.weights = ckpt_path
+            result, result_prob = test(config)
+            results.append(result)
+            results_prob.append(result_prob)
 
-    if config.tfidf:
-        results.append(tfidf(config, test_dm))
+    result, result_prob = tfidf(config)
+    results.append(result)
+    results_prob.append(result_prob)
 
-    result = combine_pred_dicts(results, method='union')
+    if len(results_prob[0]):
+        print("Prob Ensemble")
+        fnames = np.array(result.keys())
+        tmp = np.zeros((len(fnames), len(fnames)))
+        for prob in results_prob:
+            tmp += prob
+        prob = tmp / len(results_prob)
+        result = {}
+        for fname, row in zip(fnames, prob):
+            match_indices = np.where(row > 0.7)[0]
+            if len(match_indices) > 50:
+                match_indices = np.argsort(row)[-50:]
+            result[fname] = fnames[match_indices]
+    else:
+        print("Individual Ensemble")
+        result = combine_pred_dicts(results, method='union')
     write_submission(result, '/kaggle/working/')
 
 
@@ -136,7 +212,7 @@ def test(config: DictConfig):
 def main(config: DictConfig):
     # config.update(
     #     {
-    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-12/08-02-56/checkpoints/epoch=9-val/2021-04-12_08-02-56_0.784.ckpt",
+    #         'weights': "/home/yuchunli/git/kaggle-shopee/logs/runs/2021-04-18/21-51-07/2021-04-18_21-51-07__0.778/f1=0.778.ckpt",
     #         'text_backbone': '/home/yuchunli/_MODELS/huggingface/distilbert-base-indonesian',
     #         'pretrained': False,
     #         'testing': True
@@ -144,6 +220,7 @@ def main(config: DictConfig):
     # )
 
     # validate(config)
+    # bert(config)
     if not config.testing:
         return train(config)
     else:
