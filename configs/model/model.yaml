@@ -3,7 +3,7 @@ center_crop: 512
 backbone: efficientnet_b3
 text_backbone: cahya/distilbert-base-indonesian
 pretrained: true
-image_embedding_size: 256
+image_embedding_size: 512
 text_embedding_size: 768
 sentence_max_length: 512
 p_trainable: true

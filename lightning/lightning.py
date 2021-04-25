@@ -138,11 +138,11 @@ class ShopeeLightning(LightningModule):
         #     n_neighbors=50 if len(fnames) > 3 else len(fnames),
         #     threshold=self.hparams.score_threshold)
 
-        pred_dict, pred_prob = compute_cosine_similarity(embeddings=embeddings,
+        pred_dict, prob_dict = compute_cosine_similarity(embeddings=embeddings,
                                                          fnames=fnames,
                                                          threshold=self.hparams.score_threshold,
                                                          top_k=self.hparams.top_k,
                                                          get_prob=self.hparams.prob_ensemble)
 
         self.test_results = pred_dict
-        self.test_prob = pred_prob
+        self.test_prob_dict = prob_dict

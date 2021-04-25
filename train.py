@@ -1,5 +1,5 @@
 import glob
-from typing import Dict, List, Tuple
+from typing import *
 
 import cudf
 import cupy as cp
@@ -18,7 +18,8 @@ from lightning import *
 from utils import (
     compute_cosine_similarity,
     compute_f1_score,
-    combine_pred_dicts
+    combine_pred_dicts,
+    ensemble_prob_dicts
 )
 from utils import write_submission
 
@@ -63,7 +64,7 @@ def train(config: DictConfig):
     trainer.fit(lightning, data_module)
 
 
-def tfidf(config) -> Tuple[Dict, np.ndarray]:
+def tfidf(config) -> Tuple[Dict, Dict]:
     model = TfidfVectorizer(stop_words='english', binary=True, max_features=25000)
     test_dm = ShopeeTestDataModule(config)
     test_dm.setup()
@@ -72,12 +73,12 @@ def tfidf(config) -> Tuple[Dict, np.ndarray]:
         fnames.extend(batch[0])
         sentences.extend(batch[2])
     text_embeddings = model.fit_transform(cudf.Series(sentences)).toarray()
-    pred_dict, pred_array = compute_cosine_similarity(embeddings=text_embeddings,
-                                                      fnames=np.array(fnames),
-                                                      threshold=config.score_threshold,
-                                                      top_k=config.top_k,
-                                                      get_prob=config.prob_ensemble)
-    return pred_dict, pred_array
+    pred_dict, prob_dict = compute_cosine_similarity(embeddings=text_embeddings,
+                                                     fnames=np.array(fnames),
+                                                     threshold=config.score_threshold,
+                                                     top_k=config.top_k,
+                                                     get_prob=config.prob_ensemble)
+    return pred_dict, prob_dict
 
 
 def bert(config: DictConfig):
@@ -108,11 +109,11 @@ def bert(config: DictConfig):
     best_f1 = 0
     best_thres = 0
     for thres in np.arange(0, 0.95, 0.05):
-        pred_dict, pred_array = compute_cosine_similarity(embeddings=embeddings,
-                                                          fnames=fnames,
-                                                          threshold=thres,
-                                                          top_k=config.top_k,
-                                                          get_prob=config.prob_ensemble)
+        pred_dict, prob_dict = compute_cosine_similarity(embeddings=embeddings,
+                                                         fnames=fnames,
+                                                         threshold=thres,
+                                                         top_k=config.top_k,
+                                                         get_prob=config.prob_ensemble)
         f1_value = compute_f1_score(pred_dict, gt)
         if f1_value > best_f1:
             best_thres = thres
@@ -152,10 +153,11 @@ def validate(config: DictConfig):
     best_thres = 0
     best_f1 = 0
     for thres in np.arange(0, 0.95, 0.05):
-        pred_dict, pred_prob = compute_cosine_similarity(embeddings=embeddings,
+        pred_dict, prob_dict = compute_cosine_similarity(embeddings=embeddings,
                                                          fnames=fnames,
                                                          threshold=thres,
-                                                         top_k=config.top_k)
+                                                         top_k=config.top_k,
+                                                         get_prob=config.prob_ensemble)
         f1_value = compute_f1_score(pred_dict, gt)
         if f1_value > best_f1:
             best_thres = thres
@@ -163,45 +165,39 @@ def validate(config: DictConfig):
     print(f"best_f1: {best_f1} best_thres: {best_thres}")
 
 
-def test(config: DictConfig):
+def test(config: DictConfig) -> Tuple[Dict, Dict]:
     checkpoint = torch.load(config.weights)
     lightning = ShopeeLightning(config)
     lightning.load_state_dict(checkpoint['state_dict'])
     test_dm = ShopeeTestDataModule(config)
     trainer = Trainer(gpus=config.gpus)
     trainer.test(lightning, datamodule=test_dm)
-    return lightning.test_results, lightning.test_prob
+    return lightning.test_results, lightning.test_prob_dict
 
 
 def ensemble(checkpoint_paths: List[str]):
     results = []
-    results_prob = []
+    prob_dicts = []
     for ckpt_folder in checkpoint_paths:
         with initialize(config_path=ckpt_folder, job_name="ensemble_app"):
-            config = compose(config_name="config.yaml")
+            config = compose(config_name="config.yaml", overrides=[
+                "prob_ensemble=true",
+            ])
+            config.test_dir = config.train_dir
+            config.test_csv = config.label_csv
             ckpt_path = glob.glob(ckpt_folder + "/*.ckpt")[0]
             config.weights = ckpt_path
-            result, result_prob = test(config)
+            result, prob_dict = test(config)
+            prob_dicts.append(prob_dict)
             results.append(result)
-            results_prob.append(result_prob)
 
-    result, result_prob = tfidf(config)
+    result, prob_dict = tfidf(config)
     results.append(result)
-    results_prob.append(result_prob)
+    prob_dicts.append(prob_dict)
 
-    if len(results_prob[0]):
-        print("Prob Ensemble")
-        fnames = np.array(result.keys())
-        tmp = np.zeros((len(fnames), len(fnames)))
-        for prob in results_prob:
-            tmp += prob
-        prob = tmp / len(results_prob)
-        result = {}
-        for fname, row in zip(fnames, prob):
-            match_indices = np.where(row > 0.7)[0]
-            if len(match_indices) > 50:
-                match_indices = np.argsort(row)[-50:]
-            result[fname] = fnames[match_indices]
+    if config.prob_ensemble:
+        print("Combine Prob Dictionaries")
+        result = ensemble_prob_dicts(prob_dicts, threshold=0.7)
     else:
         print("Individual Ensemble")
         result = combine_pred_dicts(results, method='union')
@@ -228,4 +224,8 @@ def main(config: DictConfig):
 
 
 if __name__ == "__main__":
+    # ensemble(checkpoint_paths=[
+    #     "logs/runs/2021-04-18/21-51-07/2021-04-18_21-51-07__0.778",
+    #     "logs/runs/2021-04-24/22-05-05/checkpoints/epoch=4-val"
+    # ])
     main()

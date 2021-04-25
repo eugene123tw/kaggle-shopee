@@ -2,7 +2,7 @@ import csv
 import os
 import random
 from collections import OrderedDict, Counter
-from typing import Dict, List, Tuple, Union
+from typing import Dict, List, Tuple
 
 import cupy as cp
 import numpy as np
@@ -42,12 +42,11 @@ def get_class_weights(lines: np.ndarray, label_map: Dict[str, int], n_classes: i
 
 
 def compute_cosine_similarity(fnames: np.array, embeddings: cp.ndarray, threshold: float, top_k: int,
-                              get_prob=False) -> Tuple[Dict, Union[np.ndarray, List]]:
+                              get_prob=False) -> Tuple[Dict, Dict]:
     if not isinstance(embeddings, cp.ndarray):
         raise NotImplemented("WRONG INPUT FORMAT")
 
-    prob_array = np.zeros((len(fnames), len(fnames))) if get_prob else []
-
+    prob_dict = OrderedDict()
     pred_fnames = OrderedDict()
     chunk = 1024 * 2
     counter = len(embeddings) // chunk
@@ -60,15 +59,17 @@ def compute_cosine_similarity(fnames: np.array, embeddings: cp.ndarray, threshol
 
         sim_matrix = cp.matmul(embeddings, embeddings[a:b].T).T
 
-        if get_prob:
-            prob_array[a:b] = sim_matrix.get()
-
         for k in range(b - a):
             match_indices = cp.where(sim_matrix[k,] > threshold)[0]
             if len(match_indices) > top_k:
                 match_indices = cp.argsort(sim_matrix[k,])[-top_k:]
-            pred_fnames[fnames[a + k]] = fnames[match_indices.get()]
-    return pred_fnames, prob_array
+            if get_prob:
+                prob_dict[fnames[a + k]] = {}
+                for fname, prob in zip(fnames[match_indices.get()], sim_matrix[k, match_indices]):
+                    prob_dict[fnames[a + k]][fname] = prob.get()
+            else:
+                pred_fnames[fnames[a + k]] = fnames[match_indices.get()]
+    return pred_fnames, prob_dict
 
 
 def compute_cosine_similarity_np(fnames: np.array, embeddings: np.ndarray, threshold: float, top_k: int) -> Dict:
@@ -143,6 +144,35 @@ def combine_pred_dicts(predictions: List[Dict], method='inter') -> Dict:
             else:
                 combined_dict[fname] = pred
     return combined_dict
+
+
+def ensemble_prob_dicts(prob_dicts: List[Dict], threshold: float):
+    result = {}
+    fnames = np.array(list(prob_dicts[0].keys()))
+
+    for fname in fnames:
+        result[fname] = {}
+        for prob_dict in prob_dicts:
+            for k, v in prob_dict[fname].items():
+                if k not in result[fname]:
+                    result[fname][k] = []
+                result[fname][k].append(v)
+
+    for fname, row_dict in result.items():
+        for inner_fname, value_list in row_dict.items():
+            avg = np.mean(value_list)
+            result[fname][inner_fname] = avg
+
+    fname_result = {}
+    for fname, row_dict in result.items():
+        fname_result[fname] = []
+        row_dict = {k: v for k, v in sorted(row_dict.items(), key=lambda item: item[1], reverse=True)}
+        for k, v in row_dict.items():
+            if v > threshold:
+                fname_result[fname].append(k)
+            if len(fname_result[fname]) == 50:
+                break
+    return fname_result
 
 
 def write_submission(submit_dict, path='.'):

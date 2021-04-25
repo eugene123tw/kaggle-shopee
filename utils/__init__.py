@@ -11,5 +11,6 @@ from .utils import (
     combine_pred_dicts,
     knn_similarity,
     compute_cosine_similarity_np,
-    seed_worker
+    seed_worker,
+    ensemble_prob_dicts
 )
