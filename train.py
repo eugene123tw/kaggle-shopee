@@ -183,8 +183,6 @@ def ensemble(checkpoint_paths: List[str]):
             config = compose(config_name="config.yaml", overrides=[
                 "prob_ensemble=true",
             ])
-            config.test_dir = config.train_dir
-            config.test_csv = config.label_csv
             ckpt_path = glob.glob(ckpt_folder + "/*.ckpt")[0]
             config.weights = ckpt_path
             result, prob_dict = test(config)

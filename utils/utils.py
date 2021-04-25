@@ -64,6 +64,7 @@ def compute_cosine_similarity(fnames: np.array, embeddings: cp.ndarray, threshol
             if len(match_indices) > top_k:
                 match_indices = cp.argsort(sim_matrix[k,])[-top_k:]
             if get_prob:
+                match_indices = cp.argsort(sim_matrix[k,])[-top_k:]
                 prob_dict[fnames[a + k]] = {}
                 for fname, prob in zip(fnames[match_indices.get()], sim_matrix[k, match_indices]):
                     prob_dict[fnames[a + k]][fname] = prob.get()
